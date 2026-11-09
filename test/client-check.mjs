@@ -166,17 +166,24 @@ function makeCtx() {
 console.log('\n[apply]')
 const first = makeCtx()
 exported.apply(first.ctx, {})
-check('注入了一个槽', first.injections.length === 1, JSON.stringify(first.injections))
-check('注入的是标题栏动作槽', first.injections[0] === 'conversation.session.header.actions', first.injections[0])
-check('注册了一个入口', first.registrations.length === 1, String(first.registrations.length))
+check('注入了两个槽', first.injections.length === 2, JSON.stringify(first.injections))
+check('第一个是标题栏动作槽', first.injections[0] === 'conversation.session.header.actions', first.injections[0])
+check('第二个是新空会话欢迎区槽', first.injections[1] === 'conversation.hero.options', first.injections[1])
+check('注册了两个入口', first.registrations.length === 2, String(first.registrations.length))
 const entry = first.registrations[0]
 check('入口 id 正确', entry?.options?.id === 'system-prompt-studio', entry?.options?.id)
 check('入口 order=30', entry?.options?.order === 30, String(entry?.options?.order))
 check('入口 name 与槽一致', entry?.options?.name === 'conversation.session.header.actions')
+const heroEntry = first.registrations[1]
+check('hero 入口 id 独立', heroEntry?.options?.id === 'system-prompt-studio-hero', heroEntry?.options?.id)
+check('hero 入口 name 与槽一致', heroEntry?.options?.name === 'conversation.hero.options')
+check('hero 入口 order=20', heroEntry?.options?.order === 20, String(heroEntry?.options?.order))
+check('两个入口 id 不冲突', entry?.options?.id !== heroEntry?.options?.id)
 check('注入了 style 标签', styleTags.length === 1, String(styleTags.length))
 check('style 带 plugin 标记', styleTags[0]?.dataset?.plugin === 'dsh-system-prompt-studio', styleTags[0]?.dataset?.plugin)
 check('style 只引用主题令牌', String(styleTags[0]?.textContent ?? '').includes('--dsw-alias-') === true)
 check('style 不含硬编码色值以外的 import', String(styleTags[0]?.textContent ?? '').includes('@deepseek-ai') === false)
+check('style 覆盖 hero 变体', String(styleTags[0]?.textContent ?? '').includes('[data-variant="hero"]') === true)
 
 // ── 组件能否调通 ────────────────────────────────────────────────────────
 console.log('\n[component]')
@@ -190,6 +197,37 @@ try {
 check('组件调用不抛错', crashed === '', crashed)
 check('返回元素树', tree !== null && typeof tree === 'object')
 check('弹层默认关闭', tree !== null && tree.type === Fragment)
+
+// hero 入口：同样要能装配、带文字、并且 fallback 到 header 的文案
+console.log('\n[hero entry]')
+let heroTree
+let heroCrashed = ''
+try {
+  heroTree = heroEntry.component({ sessionId: 'session-new' })
+} catch (error) {
+  heroCrashed = String(error?.message ?? error)
+}
+check('hero 组件调用不抛错', heroCrashed === '', heroCrashed)
+check('hero 返回元素树', heroTree !== null && typeof heroTree === 'object')
+check('hero 弹层默认关闭', heroTree !== null && heroTree.type === Fragment)
+const heroButton = heroTree?.children?.[0]
+check('hero 按钮 variant=hero', heroButton?.props?.['data-variant'] === 'hero', heroButton?.props?.['data-variant'])
+const heroLabelNode = (heroButton?.children ?? []).find(
+  (child) => child?.props?.['data-sps'] === 'entrylabel',
+)
+check('hero 永远带文字标签', heroLabelNode !== undefined)
+check('hero 文案取自 actionNew', heroLabelNode?.children?.[0] === '设置系统提示词', heroLabelNode?.children?.[0])
+const headerLabelNode = (tree?.children?.[0]?.children ?? []).find(
+  (child) => child?.props?.['data-sps'] === 'entrylabel',
+)
+check('header 默认只有图标', headerLabelNode === undefined)
+
+// 关掉 showOnNewConversation 后，只保留标题栏入口
+console.log('\n[showOnNewConversation=false]')
+const heroOff = makeCtx()
+exported.apply(heroOff.ctx, { showOnNewConversation: false })
+check('只注入标题栏槽', heroOff.injections.length === 1, JSON.stringify(heroOff.injections))
+check('只注册标题栏入口', heroOff.registrations.length === 1, String(heroOff.registrations.length))
 
 // 关掉 visible 后不应注册
 console.log('\n[visible=false]')

@@ -2,7 +2,7 @@
   "name": "dsh-system-prompt-studio",
   "displayName": "System prompt studio",
   "description": "按对话查看并覆盖模型实际收到的系统提示词：追加、替换指定段，或完全替换。",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

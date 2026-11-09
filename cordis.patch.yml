@@ -32,6 +32,9 @@
 #   maxInheritDepth     继承最多上溯几层（1–8，默认 3）。0 等同于关闭继承。
 #   visible            面板入口按钮是否显示（client 半读取）。
 #   showLabel          入口按钮是否在图标旁显示文字（client 半读取，默认只显示图标）。
+#   showOnNewConversation 新空会话的欢迎区是否也放一个入口（client 半读取，默认 true）。
+#                      空会话是 hero 态，标题栏整行隐藏，只有这个槽里有入口；
+#                      关掉它等于「新对话只能靠全局默认」，不能单独给某个新对话设覆盖。
 #   hostURL            桌面壳跨源访问 host 时的回退地址；留空 = 自动（文档相对
 #                      地址 → 页面 origin → http://127.0.0.1:3080）。
 
@@ -54,4 +57,5 @@
         maxInheritDepth: 3
         visible: true
         showLabel: false
+        showOnNewConversation: true
         hostURL: ''

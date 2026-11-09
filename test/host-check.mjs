@@ -552,6 +552,13 @@ check('maxChars 被夹到下限', resolved.maxChars === 200, String(resolved.max
 check('非法 defaultMode 回退', resolved.defaultMode === 'append', resolved.defaultMode)
 check('maxObservedScopes 至少 1', resolved.maxObservedScopes === 1, String(resolved.maxObservedScopes))
 
+// client 半读的键：host 只做兜底，但要保证「明确的 false 不被吞掉」。
+check('showOnNewConversation 默认开', resolved.showOnNewConversation === true, String(resolved.showOnNewConversation))
+const heroOff = mod.__internals.resolveConfig({ showOnNewConversation: false })
+check('showOnNewConversation=false 生效', heroOff.showOnNewConversation === false, String(heroOff.showOnNewConversation))
+const junkTruthy = mod.__internals.resolveConfig({ showOnNewConversation: 'yes' })
+check('showOnNewConversation 非布尔按默认', junkTruthy.showOnNewConversation === true, String(junkTruthy.showOnNewConversation))
+
 // ── 收尾 ────────────────────────────────────────────────────────────────
 rmSync(workdir, { recursive: true, force: true })
 console.log('')

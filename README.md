@@ -117,14 +117,34 @@ Your saved overrides are **not** deleted.
 
 ## Usage
 
-1. Open any conversation. A **System prompt** button appears in the title bar (with a dot when this
-   conversation already has its own override).
+1. A **System prompt** button appears in the title bar of any conversation (with a dot when this
+   conversation already has its own override). On a **brand-new conversation** the title bar is
+   hidden by the harness, so the button lives in the welcome area instead, labeled
+   **Set system prompt**.
 2. Pick a scope: **this conversation** or **global default**. The global default applies to top-level
    conversations only — not to subagents.
 3. Choose a mode, write your text, save. It takes effect on your next message.
 4. Expand the two read-only blocks at the bottom to check reality:
    - *System prompt of the latest request* — what was actually sent;
    - *Sections assembled for this conversation* — real section names, order and size.
+
+### Can I set the prompt of a conversation that hasn't started yet?
+
+Yes, and it applies from the **first** message, not the second. The harness creates the agent the
+moment the conversation exists — before you type anything — so the override is already registered by
+the time your first prompt is assembled. Open the welcome-area button and save.
+
+Two ways to cover a new conversation:
+
+| Want | Do this |
+| --- | --- |
+| Just this one new conversation | Open its welcome-area button → **this conversation** → save |
+| Every top-level conversation that has no override of its own | Open the button in any conversation → **global default** → save |
+
+The global default is **not** limited to conversations created after you save it: it is re-evaluated
+for every live conversation on each save, so existing top-level conversations without an override of
+their own pick it up immediately too. A conversation that has its own override keeps it — the global
+default only fills in where nothing more specific exists.
 
 ### Choosing a section to replace
 
@@ -174,6 +194,7 @@ Edit the row in `cordis.patch.yml` or override it in your profile patch. The mos
 | `maxInheritDepth` | `3` | How many levels to walk up (1–8); `0` behaves like off |
 | `observeAssemblies` | `true` | Read-only assembly observer; required for the section list |
 | `visible` | `true` | Whether the panel button is shown (client-side) |
+| `showOnNewConversation` | `true` | Whether the welcome area of a brand-new conversation also gets a button (client-side) |
 | `hostURL` | `''` | Fallback host URL for desktop shells; empty = auto |
 
 Every key is documented in [`cordis.patch.yml`](cordis.patch.yml).
@@ -296,7 +317,12 @@ dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#<com
 **安装后**：Host 半即时生效；客户端是新的 JS，需要刷新一次页面才会出现标题栏按钮。
 
 **使用**：打开对话 → 标题栏「系统提示词」按钮 → 选作用域、模式、写正文 → 保存，下一次发消息生效。
+**新开的空对话**标题栏是隐藏的，入口改在欢迎区（文字为「设置系统提示词」）—— 会话一创建 agent
+就已经在了，所以这里保存的覆盖**从第一句话**就生效，不是等到第二句。
 面板底部两个只读区块分别显示「最近一次请求真正发出的系统提示词」与「本次装配到的段清单」。
+
+**新对话怎么生效**：「本对话」只作用于这一个新对话；「全局默认」作用于**所有没有自身覆盖的顶层
+对话**——包括保存时就已经存在的那些，它是「兜底」而不是「只对新对话」。
 
 **fork 继承**：fork 出的对话是新 session id，会沿 `parentSession` 链继承最近的祖先规则；面板显示
 「继承自 …」并提供「在此固定」把继承结果固化成本地规则。子对话自己一改就停止继承。默认上溯 3 层，
