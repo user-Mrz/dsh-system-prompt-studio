@@ -1,0 +1,55 @@
+{
+  "name": "dsh-system-prompt-studio",
+  "displayName": "System prompt studio",
+  "description": "按对话查看并覆盖模型实际收到的系统提示词：追加、替换指定段，或完全替换。",
+  "version": "0.1.0",
+  "type": "module",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./package.json": "./package.json",
+    "./icon": "./icon.svg",
+    "./locale/*.json": "./locale/*.json"
+  },
+  "files": [
+    "lib",
+    "locale",
+    "cordis.patch.yml",
+    "icon.svg",
+    "README.md",
+    "LICENSE"
+  ],
+  "dsh": {
+    "engines": {
+      "dsh": ">=0.2.2-0 <0.3.0-0"
+    },
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": []
+    }
+  },
+  "scripts": {
+    "prepare": "node scripts/verify-entry.mjs",
+    "check": "node --check lib/index.js && node --check lib/client.js && node test/host-check.mjs && node test/client-check.mjs"
+  },
+  "keywords": [
+    "dsh-plugin",
+    "deepseek-harness",
+    "system-prompt",
+    "prompt-engineering"
+  ],
+  "author": "user-Mrz",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/user-Mrz/dsh-system-prompt-studio.git"
+  },
+  "homepage": "https://github.com/user-Mrz/dsh-system-prompt-studio#readme",
+  "bugs": {
+    "url": "https://github.com/user-Mrz/dsh-system-prompt-studio/issues"
+  }
+}

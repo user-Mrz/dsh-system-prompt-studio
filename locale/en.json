@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "System prompt",
+    "description": "Inspect and override the system prompt a conversation actually sends: append, replace one section, or replace everything."
+  }
+}

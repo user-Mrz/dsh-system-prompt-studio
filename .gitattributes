@@ -1,0 +1,9 @@
+# 统一用 LF：插件在 Windows / macOS / Linux 上都要能直接跑，
+# 而 CRLF 混进 .js 会带来无意义的整文件 diff。
+* text=auto eol=lf
+
+# 二进制
+*.png binary
+*.jpg binary
+*.webp binary
+*.gif binary

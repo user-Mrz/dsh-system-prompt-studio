@@ -1,0 +1,52 @@
+# dsh-system-prompt-studio bundle patch.
+#
+# 一个 HOST 平面的行。它必须落在 host 平面而不是某个 agent preset 里：既要
+# 对每个会话按 agent 作用域注册提示词段，又要只注册一条回环 HTTP 路由给 Web
+# 面板读取状态，这两件事都跨会话。
+#
+# 注意：patch 对同一行是「整体替换 config」而不是合并，所以这个文件是这份配置
+# 的唯一权威；改默认值请改这里（用户的 patch 层会覆盖本行，升级时保留）。
+#
+# 逐键说明：
+#   enabled            总开关。false 时不注册任何提示词段，接口返回
+#                      capability.enabled=false 并说明原因。
+#   apiPath            精确匹配的 HTTP 路由路径，必须以 /api/ 开头；不合法时
+#                      回退默认值并在日志里 warn。
+#   stateFile          覆盖状态落盘位置。空 = $DSH_HOME/dsh-system-prompt-studio/state.json
+#   defaultMode        没有任何覆盖时「全局默认」使用的模式：
+#                      append | replace | complete
+#   allowComplete      false 时完全替换模式一律拒绝（接口返回 COMPLETE_BLOCKED），
+#                      用来避免误把第一方提示词整段换掉。
+#   appendOrder        追加段的排序值（默认 10500，在第一方
+#                      deployment:persona-suffix=10200 之后）。夹到 [10201, 20000]。
+#   defaultTargetName  替换模式的默认目标段名。真正的可选段名以面板里
+#                      「本会话装配到的段」实测清单为准。
+#   maxChars           单份覆盖正文的字符上限；超限直接拒绝而不是截断。
+#   observeAssemblies  是否注册只读的 system-prompt/assemble 观察（用来列出真实
+#                      段名与顺序）。false 时段清单返回 null，其余功能照常。
+#   maxObservedScopes  观察缓存的作用域上限（FIFO 淘汰），防止长期运行堆积。
+#   globalDefaultScope 「全局默认」套用到哪些会话：roots（默认，只套用到顶层会话，
+#                      不碰子代理）| all（含子代理）。
+#   visible            面板入口按钮是否显示（client 半读取）。
+#   showLabel          入口按钮是否在图标旁显示文字（client 半读取，默认只显示图标）。
+#   hostURL            桌面壳跨源访问 host 时的回退地址；留空 = 自动（文档相对
+#                      地址 → 页面 origin → http://127.0.0.1:3080）。
+
+- insert:
+    - id: dsh-system-prompt-studio
+      name: dsh-system-prompt-studio
+      config:
+        enabled: true
+        apiPath: /api/system-prompt-studio
+        stateFile: ''
+        defaultMode: append
+        allowComplete: true
+        appendOrder: 10500
+        defaultTargetName: 'deployment:persona-suffix'
+        maxChars: 200000
+        observeAssemblies: true
+        maxObservedScopes: 64
+        globalDefaultScope: roots
+        visible: true
+        showLabel: false
+        hostURL: ''

@@ -1,0 +1,19 @@
+# 依赖与产物
+node_modules/
+*.log
+pnpm-debug.log*
+
+# 编辑器 / 系统
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# 运行时状态：本插件把覆盖写在 $DSH_HOME 下，仓库里不应出现任何用户数据
+state.json
+*.corrupt-*
+
+# 本地临时文件
+*.tmp
+.tmp/
