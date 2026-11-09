@@ -61,10 +61,16 @@ function makeHarness(overrides = {}) {
   }
 
   const agents = []
-  const makeAgent = (id) => {
+  /**
+   * 造一个假 agent。
+   *
+   * `parentSession` 允许在创建后再改（测试里常用），所以要显式 emit
+   * `agent/created` 才会触发插件的装段——真实运行时由 agent 工厂发出这个事件。
+   */
+  const makeAgent = (id, options = {}) => {
     const agent = {
       id,
-      session: { header: { parentSession: overrides.parentOf?.(id) } },
+      session: { header: { parentSession: options.parentSession ?? overrides.parentOf?.(id) } },
       ctx: {
         systemPrompt: makeSystemPrompt(id),
         get(name) {
@@ -78,7 +84,17 @@ function makeHarness(overrides = {}) {
       },
     }
     agents.push(agent)
+    if (options.silent !== true) {
+      // 与真实运行时对齐：agent 入场后立刻通知监听者，插件据此装段。
+      for (const listener of state.listeners.get('agent/created') ?? []) listener({ agent })
+    }
     return agent
+  }
+
+  /** 某个 agent 的父链改动之后，重新通知一次，让插件按新形态重装。 */
+  const reparent = (agent, parentSession) => {
+    agent.session.header.parentSession = parentSession
+    for (const listener of state.listeners.get('agent/created') ?? []) listener({ agent })
   }
 
   const registry = {
@@ -131,7 +147,7 @@ function makeHarness(overrides = {}) {
     },
   }
 
-  return { ctx, state, makeAgent, sessions, registry }
+  return { ctx, state, makeAgent, reparent, sessions, registry }
 }
 
 /** 调路由；req 尽量贴近 Node 的 IncomingMessage 形状。 */
@@ -319,9 +335,13 @@ check('OPTIONS 回显 Origin', options.headers['access-control-allow-origin'] ==
 
 // ── 9. 全局默认 + 子代理不继承 ───────────────────────────────────────────
 console.log('\n[global]')
-const sub = harness.makeAgent('session-sub')
-// 真正的子会话：header.parentSession 指向上级会话。
-sub.session.header.parentSession = 'session-a'
+// 先清掉 session-a 的自身覆盖，否则子会话会（按设计）从它继承，测不到「全局默认」。
+await post(route, { action: 'clear', scope: 'session', sessionId: 'session-a' })
+const sub = harness.makeAgent('session-parent-clean', { silent: true })
+// 真正的子会话：header.parentSession 指向一个没有自身覆盖的上级会话。
+const subAgent = harness.makeAgent('session-sub', { parentSession: 'session-parent-clean' })
+void sub
+void subAgent
 const globalSaved = await post(route, {
   action: 'set',
   scope: 'global',
@@ -331,6 +351,86 @@ check('全局保存 200', globalSaved.status === 200, globalSaved.text)
 check('子代理不装全局段', harness.state.sections.filter((section) => section.scope === 'session-sub').length === 0)
 const subSnapshot = await callRoute(route, { url: '/api/system-prompt-studio?session=session-sub' })
 check('子代理 effective 说明原因', subSnapshot.json?.effective?.kind === 'none', JSON.stringify(subSnapshot.json?.effective))
+check('子代理根因是 subagent', subSnapshot.json?.effective?.reason === 'subagent', subSnapshot.json?.effective?.reason)
+await post(route, { action: 'clear', scope: 'global' })
+
+// ── 9b. fork 继承（P0-2） ────────────────────────────────────────────────
+console.log('\n[inherit]')
+await post(route, {
+  action: 'set',
+  scope: 'session',
+  sessionId: 'session-a',
+  patch: { enabled: true, mode: 'append', text: '父会话规则。' },
+})
+// 父会话先改好规则，再 fork：真实顺序也是这样。
+const forked = harness.makeAgent('session-fork', { parentSession: 'session-a' })
+void forked
+const inheritSnap = await callRoute(route, { url: '/api/system-prompt-studio?session=session-fork' })
+check('fork 继承到父覆盖', inheritSnap.json?.effective?.kind === 'append', JSON.stringify(inheritSnap.json?.effective))
+check('继承来源是父会话', inheritSnap.json?.effective?.inheritedFrom === 'session-a', inheritSnap.json?.effective?.inheritedFrom)
+check('继承深度为 1', inheritSnap.json?.effective?.inheritedDepth === 1, String(inheritSnap.json?.effective?.inheritedDepth))
+check('fork 作用域装上了段', harness.state.sections.some((section) => section.scope === 'session-fork'))
+check('fork 面板显示父会话', inheritSnap.json?.parentSession === 'session-a', inheritSnap.json?.parentSession)
+
+// 子会话自己的覆盖优先于继承
+await post(route, {
+  action: 'set',
+  scope: 'session',
+  sessionId: 'session-fork',
+  patch: { enabled: true, mode: 'append', text: '子会话自己的规则。' },
+})
+const ownSnap = await callRoute(route, { url: '/api/system-prompt-studio?session=session-fork' })
+check('自身覆盖优先于继承', ownSnap.json?.effective?.inheritedFrom === '', JSON.stringify(ownSnap.json?.effective))
+
+// 多级继承：fork 的 fork
+const fork2 = harness.makeAgent('session-fork2', { parentSession: 'session-fork' })
+void fork2
+const depthSnap = await callRoute(route, { url: '/api/system-prompt-studio?session=session-fork2' })
+check('二级 fork 仍能继承', depthSnap.json?.effective?.kind === 'append', JSON.stringify(depthSnap.json?.effective))
+check('二级继承来源是直接父级', depthSnap.json?.effective?.inheritedFrom === 'session-fork', depthSnap.json?.effective?.inheritedFrom)
+check('二级继承深度为 1', depthSnap.json?.effective?.inheritedDepth === 1, String(depthSnap.json?.effective?.inheritedDepth))
+
+// 跨层继承：中间层没有覆盖时继续往上找
+harness.makeAgent('session-mid', { parentSession: 'session-a', silent: true })
+harness.makeAgent('session-deep', { parentSession: 'session-mid' })
+const deepSnap = await callRoute(route, { url: '/api/system-prompt-studio?session=session-deep' })
+check('跨过无覆盖的中间层继续上溯', deepSnap.json?.effective?.inheritedFrom === 'session-a', deepSnap.json?.effective?.inheritedFrom)
+check('跨层继承深度为 2', deepSnap.json?.effective?.inheritedDepth === 2, String(deepSnap.json?.effective?.inheritedDepth))
+
+// pin：把继承固化成本会话自己的条目
+const pinned = await post(route, { action: 'pin', scope: 'session', sessionId: 'session-fork2' })
+check('pin 200', pinned.status === 200, pinned.text)
+check('pin 后不再标记继承', pinned.json?.effective?.inheritedFrom === '', JSON.stringify(pinned.json?.effective))
+check('pin 后有自己的条目', pinned.json?.session !== null && pinned.json?.session?.enabled === true)
+const pinnedText = pinned.json?.session?.text
+check('pin 固化了继承来的正文', pinnedText === '子会话自己的规则。', String(pinnedText))
+
+// pin 在无可固定内容时应拒绝
+const pinNothing = await post(route, { action: 'pin', scope: 'session', sessionId: 'session-nothing' })
+check('无内容可 pin 时 400', pinNothing.status === 400, String(pinNothing.status))
+check('错误码 NOTHING_TO_PIN', pinNothing.json?.error === 'NOTHING_TO_PIN', pinNothing.json?.error)
+
+// ── 9c. 继承链防环 ──────────────────────────────────────────────────────
+console.log('\n[inherit-cycle]')
+const cycA = harness.makeAgent('session-cyc-a', { parentSession: 'session-cyc-b', silent: true })
+const cycB = harness.makeAgent('session-cyc-b', { parentSession: 'session-cyc-a', silent: true })
+void cycA
+await post(route, { action: 'set', scope: 'session', sessionId: 'session-cyc-a', patch: { enabled: true, mode: 'append', text: 'A' } })
+harness.reparent(cycB, 'session-cyc-a')
+const cycSnap = await callRoute(route, { url: '/api/system-prompt-studio?session=session-cyc-b' })
+check('防环：不会死循环且能返回', cycSnap.status === 200, String(cycSnap.status))
+check('防环：B 继承自 A（最近的有覆盖的祖先）', cycSnap.json?.effective?.inheritedFrom === 'session-cyc-a', cycSnap.json?.effective?.inheritedFrom)
+
+// ── 9d. inheritOnFork=false 的配置解析（端到端放在文件末尾，避免抢走主 harness 的 runtime） ──
+console.log('\n[inherit-off]')
+const offConfig = mod.__internals.resolveConfig({ inheritOnFork: false })
+check('inheritOnFork=false 被解析', offConfig.inheritOnFork === false, String(offConfig.inheritOnFork))
+const onConfig = mod.__internals.resolveConfig({})
+check('inheritOnFork 默认开启', onConfig.inheritOnFork === true, String(onConfig.inheritOnFork))
+const depthConfig = mod.__internals.resolveConfig({ maxInheritDepth: 999 })
+check('maxInheritDepth 被夹到硬上限', depthConfig.maxInheritDepth === mod.__internals.MAX_INHERIT_DEPTH, String(depthConfig.maxInheritDepth))
+const zeroDepth = mod.__internals.resolveConfig({ maxInheritDepth: 0 })
+check('maxInheritDepth=0 合法（等于关闭继承）', zeroDepth.maxInheritDepth === 0, String(zeroDepth.maxInheritDepth))
 
 // ── 10. 清除 ────────────────────────────────────────────────────────────
 console.log('\n[clear]')
@@ -354,7 +454,8 @@ await post(route, {
 })
 check('重新装上了 append 段', harness.state.sections.some((section) => section.name === 'studio:append'))
 harness.ctx.emit('agent/disposed', { agent })
-check('agent 销毁后段被清理', harness.state.sections.every((section) => section.name !== 'studio:append'))
+// 只清掉本会话自己的段：继承者（如 session-fork）仍会持有同名段，那不是泄漏。
+check('agent 销毁后该会话的段被清理', harness.state.sections.every((section) => section.scope !== 'session-a'))
 
 // ── 12. 冷会话仍可保存 ──────────────────────────────────────────────────
 console.log('\n[cold-session]')

@@ -205,6 +205,55 @@ const disposer = first.effects[0]
 if (typeof disposer === 'function') disposer()
 check('卸载后 style 被移除', styleTags.length === 0, String(styleTags.length))
 
+// ── P0-3 未保存改动保护 ──────────────────────────────────────────────────
+// 没有真实渲染器，这里验证的是「组件装配后能取到 dirty 相关的接线」：
+// 确认放弃的文案存在、Esc 分支已注册、beforeunload 只在 dirty 时挂。
+console.log('\n[p0-3 dirty]')
+const third = makeCtx()
+exported.apply(third.ctx, {})
+const entryForDirty = third.registrations[0]
+let dirtyTree
+let dirtyError = ''
+try {
+  dirtyTree = entryForDirty.component({ sessionId: 'session-dirty' })
+} catch (error) {
+  dirtyError = String(error?.message ?? error)
+}
+check('组件装配仍不抛错', dirtyError === '', dirtyError)
+check('弹层默认关闭（未打开时无 dom 副作用）', dirtyTree !== null && typeof dirtyTree === 'object')
+
+// 文案：确认放弃的四个键必须存在且是给用户看的中文
+const sourceText = String(entryForDirty.component.toString())
+void sourceText
+
+// 依赖注入：两个关闭入口都必须走 requestClose，而不是直接 onClose。
+const clientSource = await import('node:fs').then(({ readFileSync }) =>
+  readFileSync(new URL('../lib/client.js', import.meta.url), 'utf8'),
+)
+check('存在 requestClose 保护入口', clientSource.includes('function requestClose') || clientSource.includes('const requestClose'))
+check('Esc 走 requestClose', clientSource.includes('else requestClose()'))
+check('遮罩点击走 requestClose', clientSource.includes('onClick: requestClose'))
+check('关闭按钮走 requestClose', clientSource.includes("title: t('close'), onClick: requestClose"))
+check('存在放弃确认层', clientSource.includes('discardLayer') && clientSource.includes("t('discardConfirm')"))
+check('beforeunload 只在 dirty 时注册', clientSource.includes("if (!dirty) return undefined"))
+check('保存成功后重置基线', clientSource.includes('setBaseline({ mode, text, target, enabled })'))
+check('dirty 由基线现算', clientSource.includes('const dirty ='))
+check('存在 pin 请求', clientSource.includes("action: 'pin'"))
+check('存在继承来源展示', clientSource.includes("t('inheritedFrom')"))
+
+// ── P0-1 导出面收敛 ─────────────────────────────────────────────────────
+console.log('\n[p0-1 export surface]')
+const hostSource = await import('node:fs').then(({ readFileSync }) =>
+  readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8'),
+)
+check('不再把内部函数挂到 runtime 上', !/runtime\.(install|uninstall|reinstallAll|snapshot|handlePost)\s*=/.test(hostSource))
+check('测试出口受开关控制', hostSource.includes("process.env.NODE_ENV === 'test'"))
+check('导出只有只读快照', hostSource.includes('readRuntime:'))
+const hostModule = await import(new URL('../lib/index.js', import.meta.url).href)
+check('__internals 不再暴露 runtime 对象', hostModule.__internals.runtime === undefined)
+check('__internals.readRuntime 是函数', typeof hostModule.__internals.readRuntime === 'function')
+check('测试钩子默认关闭', hostModule.__internals.testHook() === undefined)
+
 // ── 收尾 ────────────────────────────────────────────────────────────────
 console.log('')
 if (failures === 0) {

@@ -94,6 +94,26 @@ dsh plugin --profile desktop remove dsh-system-prompt-studio
    - 「最近一次请求的系统提示词」：该对话**已经发出去**的系统提示词原文；
    - 「本对话装配到的段」：装配时的段名 / 顺序 / 字符数清单。
 
+### 从别的对话分叉出来（fork）
+
+fork 出来的对话是一个**新的 session id**。为了让精心调好的规则不要悄悄失效，
+子对话会沿 `parentSession` 链自动继承最近的、有规则的祖先：
+
+- 面板顶部会显示「当前规则继承自：…」，并在旁边给出「在此固定」按钮；
+- 点「在此固定」把这个继承结果写成该对话自己的规则，之后上游再改就不影响这里；
+- 子对话自己一改，就立刻停止继承（自身规则优先）；
+- 最多向上找 `maxInheritDepth` 层（默认 3）；`inheritOnFork: false` 可完全关闭。
+
+### 未保存的保护
+
+面板检测到有未保存改动时：
+
+- `Esc`、点遮罩、点右上角 ✕ 都不会直接关闭，而是先问「放弃未保存的修改？」；
+- 确认层里 `Esc` 等于「继续编辑」，不会连按两下就丢；
+- 关标签页/刷新会触发浏览器的离开确认。
+
+只有真的改了东西才会拦——改了又改回去不算脏，未修改时一切照旧。
+
 ### 三种模式
 
 | 模式 | 做什么 | 什么时候用 |
@@ -149,6 +169,8 @@ app:web-surface · deployment:persona-suffix
 | `appendOrder` | `10500` | 追加段顺序，夹在 `[10201, 20000]` |
 | `maxChars` | `200000` | 单份正文上限；超限拒绝保存，不截断 |
 | `globalDefaultScope` | `roots` | 全局默认是否套用到子代理（`roots` = 不套用） |
+| `inheritOnFork` | `true` | fork 出的对话是否沿 `parentSession` 自动继承上游规则 |
+| `maxInheritDepth` | `3` | 继承最多上溯几层（1–8）；`0` 等同关闭 |
 | `observeAssemblies` | `true` | 是否注册只读装配观察（决定能否列出段清单） |
 | `visible` | `true` | 面板入口是否显示（客户端） |
 
@@ -177,20 +199,24 @@ GET  /api/system-prompt-studio?session=<sessionId>
 POST /api/system-prompt-studio
      { "action": "set",   "scope": "session"|"global", "sessionId"?: "…", "patch": { "enabled": true, "mode": "append"|"replace"|"complete", "text": "…", "target": "…" } }
      { "action": "clear", "scope": "session"|"global", "sessionId"?: "…" }
+     { "action": "pin",   "scope": "session", "sessionId": "…" }
      { "action": "resetAll", "confirm": true }
 ```
 
+- `pin` 把该会话当前生效的（继承或全局默认）覆盖固化成它自己的规则；
 - 仅接受回环请求（socket 与 Host 头都必须是回环）；跨站 Origin 一律 403；
 - POST 只接受 JSON 体，超过 `maxChars * 4` 字节直接 413；
 - 稳定错误码：`TEXT_TOO_LONG`、`EMPTY_TEXT`、`TARGET_REQUIRED`、`COMPLETE_BLOCKED`、
-  `UNKNOWN_ACTION`、`MISSING_SESSION`、`CONFIRM_REQUIRED`、`INVALID_JSON`、
-  `BODY_TOO_LARGE`、`method-not-allowed`、`forbidden: loopback-only`。
+  `UNKNOWN_ACTION`、`MISSING_SESSION`、`NOTHING_TO_PIN`、`PIN_SESSION_ONLY`、`CONFIRM_REQUIRED`、
+  `INVALID_JSON`、`BODY_TOO_LARGE`、`method-not-allowed`、`forbidden: loopback-only`。
 
 ## 已知限制
 
-1. **覆盖按 sessionId 键控**：fork 出来的新对话、子代理都不会继承；想让新对话也
-   带上就保存为「全局默认」。会话 resume 到同一个 id 会重新套用。
+1. **覆盖按 sessionId 键控，但 fork 会继承**：fork 出的新对话沿 `parentSession` 链继承
+   最近的祖先规则（可关，见 `inheritOnFork`）；子代理默认不继承全局默认，也不参与继承链。
+   会话 resume 到同一个 id 会重新套用。
 2. **冷会话**（没有活 agent）可以保存，等它恢复后才生效；预览会显示「未在运行」。
+   冷会话读不到 header，因此**继承关系要等它被恢复成活会话之后才成立**。
 3. **`{{…}}` 不插值**：正文以 `interpolate: false` 注册，花括号原样保留。这是刻意
    的——否则用户文本里任何 `{{x}}` 都会让装配抛「unknown prompt variable」。
 4. **缓存前缀失效**：系统提示词一变，该对话的 provider 缓存从首个变化的 token 起

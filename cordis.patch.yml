@@ -27,6 +27,9 @@
 #   maxObservedScopes  观察缓存的作用域上限（FIFO 淘汰），防止长期运行堆积。
 #   globalDefaultScope 「全局默认」套用到哪些会话：roots（默认，只套用到顶层会话，
 #                      不碰子代理）| all（含子代理）。
+#   inheritOnFork       fork 继承：子会话没有自身覆盖时，沿 parentSession 链向上找。
+#                      true（默认）| false（各会话独立，退回旧行为）。
+#   maxInheritDepth     继承最多上溯几层（1–8，默认 3）。0 等同于关闭继承。
 #   visible            面板入口按钮是否显示（client 半读取）。
 #   showLabel          入口按钮是否在图标旁显示文字（client 半读取，默认只显示图标）。
 #   hostURL            桌面壳跨源访问 host 时的回退地址；留空 = 自动（文档相对
@@ -47,6 +50,8 @@
         observeAssemblies: true
         maxObservedScopes: 64
         globalDefaultScope: roots
+        inheritOnFork: true
+        maxInheritDepth: 3
         visible: true
         showLabel: false
         hostURL: ''
