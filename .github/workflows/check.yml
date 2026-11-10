@@ -169,6 +169,26 @@ jobs:
           if (bad) process.exit(1)
           '
 
+      # README 里的安装示例带着版本号，发版时最容易忘。写死一个旧版本
+      # 不会让任何测试变红，但会让读者复制到一份过时的命令——而且每次发版
+      # 都要手改四处，忘一处就只错一半，比全错更难发现。
+      - name: README install examples name the current version
+        run: |
+          node -e '
+          const fs = require("node:fs")
+          const version = JSON.parse(fs.readFileSync("package.json", "utf8")).version
+          const readme = fs.readFileSync("README.md", "utf8")
+
+          // 只看安装示例里出现的版本：`#v1.2.3` 和 `@1.2.3`。
+          const pinned = [...readme.matchAll(/(?:#v|@)(\d+\.\d+\.\d+)\b/g)].map((m) => m[1])
+          const stale = [...new Set(pinned)].filter((v) => v !== version)
+          if (stale.length > 0) {
+            console.error(`FAIL README install examples pin ${stale.join(", ")}, but package.json is ${version}`)
+            process.exit(1)
+          }
+          console.log(`ok   README install examples pin ${version}`)
+          '
+
       - name: No personal data in tracked files
         run: |
           # 这个仓库是公开的。一次误提交的邮箱或绝对路径会永久留在历史里，

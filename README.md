@@ -61,7 +61,7 @@ dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio
 From GitHub, which tracks the default branch and therefore needs a ref if you want a fixed version:
 
 ```bash
-dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.1.4
+dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.1.7
 ```
 
 Replace `<profile>` with your profile name — for the Web build that is usually `web`.
@@ -70,7 +70,7 @@ Replace `<profile>` with your profile name — for the Web build that is usually
 changes what you install next time:
 
 ```bash
-dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.1.4
+dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.1.7
 ```
 
 <details>
@@ -328,13 +328,13 @@ dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio
 或从 GitHub（跟随默认分支，建议锁 tag）：
 
 ```bash
-dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.1.4
+dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.1.7
 ```
 
 锁定版本，保证装到的是一份确定的代码：
 
 ```bash
-dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.1.4
+dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.1.7
 ```
 
 `prepare` 脚本只校验入口文件存在，不做编译。若被 pnpm 拦下，把 `pnpm-workspace.yaml` 里
