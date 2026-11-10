@@ -31,7 +31,7 @@ session, effective immediately.
   |---|---|
   | **Append** (default) | Keeps every first-party section, adds yours at the end. Safest. |
   | **Replace a section** | Shadows one named first-party section, e.g. `deployment:persona-suffix`. |
-  | **Replace everything** | Your text becomes the entire system prompt. Highest risk — see below. |
+  | **Replace everything** | Your text becomes the entire system prompt. Highest risk: drops first-party guidance **and every other plugin's sections** — see below. |
 
 - **Applies on the next model request.** No restart, no reload.
 - **Persists per session**, and a **global default** applies to new conversations automatically.
@@ -46,8 +46,26 @@ That mode removes **all** first-party guidance — tool instructions, structured
 policy. Tool-calling quality can drop noticeably. Runtime context (working directory, sandbox policy,
 approval policy) is still sent as a user-side snapshot and is **not** replaced by your text.
 
+**It also removes every section other plugins registered.** This is the part that bites quietly. A
+plugin's tool schema still ships, but the prose that tells the model *when and how* to call it is gone,
+so the tool stays installed and unused — and nothing errors. The failure looks like "the model got
+dumber", not like "I turned something off". If you run a plugin that registers prompt sections
+(`plugin:ssh`, `plugin:task-board`, `team:policy`, and so on), Replace everything disables all of them
+at once for that conversation.
+
+The panel lists exactly what will be dropped before you save: every section name with its character
+count, plus a separate line naming how many of them belong to other plugins. If the conversation has
+not assembled a prompt yet, it says it cannot list them rather than guessing.
+
+**Consider turning the mode off entirely.** Set `allowComplete: false` in the plugin row's config and
+the mode becomes unavailable — the panel greys it out, and saving one is rejected with
+`COMPLETE_BLOCKED`. Any `complete` override already in the state file stops applying and the prompt
+falls back to the first-party default (the data is kept, not deleted). This is the recommended setting
+for any profile running third-party plugins that contribute prompt sections.
+
 Also: assembly allows only one active `complete` section. If another plugin registers one in the same
-session, assembly fails with `multiple complete prompt sections`. Switch back to Append or Replace to
+session, assembly fails with `multiple complete prompt sections` — and then **every** model request in
+that conversation fails, while the user only sees "request failed". Switch back to Append or Replace to
 recover.
 
 ---
@@ -71,7 +89,7 @@ dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio
 From GitHub, which tracks the default branch and therefore needs a ref if you want a fixed version:
 
 ```bash
-dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.1.9
+dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.2.0
 ```
 
 Replace `<profile>` with your profile name — for the Web build that is usually `web`.
@@ -80,7 +98,7 @@ Replace `<profile>` with your profile name — for the Web build that is usually
 changes what you install next time:
 
 ```bash
-dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.1.9
+dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.2.0
 ```
 
 <details>
@@ -215,7 +233,7 @@ Edit the row in `cordis.patch.yml` or override it in your profile patch. The mos
 |---|---|---|
 | `enabled` | `true` | Master switch; when off, no section is registered and the API reports why |
 | `defaultMode` | `append` | Mode used by the global default |
-| `allowComplete` | `true` | Set `false` to disable "replace everything" entirely |
+| `allowComplete` | `true` | Set `false` to disable "replace everything" entirely. **Recommended when other plugins register prompt sections** — see the warning above. |
 | `appendOrder` | `10500` | Sort order of the appended section, clamped to `[10201, 20000]` |
 | `maxChars` | `200000` | Max body length; oversize is **rejected**, never truncated |
 | `globalDefaultScope` | `roots` | Whether the global default also applies to subagents (`all` to include) |
@@ -324,8 +342,24 @@ DSH 本身只提供配置文件级的人设前后缀：改一次要重启，且�
 
 **⚠️ 关于「完全替换」**：它会移除第一方的全部指引（工具使用说明、结构化输出规则、计划模式策略），
 工具调用质量可能明显下降。运行时上下文（工作目录 / 沙箱 / 审批策略）仍会作为用户侧快照发送，
-不会被你的文本替换。另外装配只允许一个生效的 `complete` 段，若同会话内有别的插件也注册了一个，
-装配会报 `multiple complete prompt sections` —— 改回「追加」或「替换」即可恢复。
+不会被你的文本替换。
+
+**它同时会移除其它插件注册的全部段落，这一点最容易在不知不觉中出问题。** 插件的工具 schema 还在，
+但告诉模型「何时调用、怎么调用」的那段说明没了，于是工具装着却用不上，而且不报任何错——看起来像
+「模型变笨了」，而不是「我关掉了什么」。如果你装了会注册提示词段的插件（`plugin:ssh`、
+`plugin:task-board`、`team:policy` 之类），「完全替换」会把它们在该对话里一次性全部停用。
+
+面板在保存前会逐条列出到底会丢掉什么：每个段名与字符数，并单独点明其中有多少个属于其它插件。
+若该对话还没装配过提示词，面板会如实说无法列举，而不是猜一个数字。
+
+**建议直接把这个模式关掉。** 在插件那一行的配置里设 `allowComplete: false`，该模式即不可用——
+面板会把选项置灰，强行保存会被 `COMPLETE_BLOCKED` 拒绝。状态文件里已有的 `complete` 覆盖会停止
+生效，提示词回到第一方默认（数据保留，不删除）。**只要 profile 里装了会贡献提示词段的第三方插件，
+就推荐这么设。**
+
+另外装配只允许一个生效的 `complete` 段，若同会话内有别的插件也注册了一个，装配会报
+`multiple complete prompt sections` —— 那时该对话的**每一次**模型请求都会失败，而用户只会看到
+「请求失败」。改回「追加」或「替换」即可恢复。
 
 **安装**
 
@@ -343,13 +377,13 @@ dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio
 或从 GitHub（跟随默认分支，建议锁 tag）：
 
 ```bash
-dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.1.9
+dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.2.0
 ```
 
 锁定版本，保证装到的是一份确定的代码：
 
 ```bash
-dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.1.9
+dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.2.0
 ```
 
 `prepare` 脚本只校验入口文件存在，不做编译。若被 pnpm 拦下，把 `pnpm-workspace.yaml` 里

@@ -12,6 +12,37 @@ integration still targets the same DSH shapes, a major bump means it may not.
 
 Nothing yet.
 
+## [0.2.0] — 2026-11-10
+
+### Added
+
+- **"Replace everything" now lists what it will drop.** The panel already held the real assembled
+  section list, so "you are about to lose the first-party prompt" was a warning about something it could
+  actually enumerate. It now shows every section that will be discarded, with its character count, folds
+  the list after 24 entries, and calls out separately how many of those sections belong to **other
+  plugins**. That last number is the one that matters: a plugin's tool schema survives a `complete`
+  override, but the prose telling the model when and how to call it does not, so the tool stays installed
+  and unused with no error anywhere. It reads as "the model got dumber", never as "I turned a mode on".
+- When the conversation has not assembled a prompt yet, the panel says it cannot list the sections
+  rather than inventing a count.
+- Nine structural checks cover the new computation, including that it excludes the plugin's own
+  sections, that it folds past 24 entries, and that a disabled `allowComplete` suppresses the list
+  entirely.
+
+### Changed
+
+- The README's "Replace everything" warning now leads with the cross-plugin damage rather than only the
+  first-party guidance, documents the new per-section listing, and recommends `allowComplete: false` for
+  any profile running plugins that contribute prompt sections. Both languages updated, and the config
+  table marks that recommendation.
+
+### Note
+
+`allowComplete` still defaults to `true` in the plugin's own patch. This release adds information and
+documentation, not a behaviour change: existing users keep the mode unless they turn it off. The
+recommendation is in the README because whether to keep a whole-prompt override is the profile owner's
+call, and silently removing a documented mode from under them would be worse than the risk it avoids.
+
 ## [0.1.9] — 2026-11-10
 
 ### Changed
@@ -166,7 +197,8 @@ scoped name unambiguous for anyone who arrives from GitHub.
 - Read-only assembly observer listing the real section names, order and size.
 - Loopback-only HTTP route for the panel; forged `Host` headers are refused.
 
-[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.9...HEAD
+[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.9...v0.2.0
 [0.1.9]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.6...v0.1.7

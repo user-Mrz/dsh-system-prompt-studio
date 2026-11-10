@@ -290,6 +290,21 @@ check('滞后清单有提示', clientSource.includes("t('sectionsStaleNote')"))
 check('complete 有清单说明', clientSource.includes("t('sectionsCompleteNote')"))
 check('时间戳格式函数存在', /function formatClock\s*\(/.test(clientSource))
 
+// ── C：完全替换前逐条列出会丢掉的段 ──────────────────────────────────────
+// 通用勾选框只说「会丢掉第一方全部提示词」，用户不知道丢的是 3 段还是 20 段，
+// 也不知道里面有没有别的插件注册的段。面板本来就持有真实装配清单，所以这件事
+// 应当算出来给他看，而不是只警告。
+console.log('\n[complete drops]')
+check('算出会丢掉的段', clientSource.includes('droppedSections'))
+check('排除 studio 自己的段', clientSource.includes("studio:complete', 'studio:append'"))
+check('累加被丢弃的字符数', clientSource.includes('dropped.reduce'))
+check('识别第三方插件注册的段', clientSource.includes('FIRST_PARTY'))
+check('清单可读时逐条列出', clientSource.includes("t('completeDrops')") && clientSource.includes('dropitem'))
+check('超出上限折叠为「还有 N 个」', clientSource.includes("t('completeDropsMore')"))
+check('冷会话如实说无法列举', clientSource.includes("t('completeDropsUnknown')"))
+check('点名插件段会哑掉', clientSource.includes("t('completeDropsPlugins')"))
+check('blocked 时不列清单（已被禁用，列了也没用）', /blocked\.complete\s*\?\s*null\s*:/.test(clientSource))
+
 // ── P0-1 导出面收敛 ─────────────────────────────────────────────────────
 console.log('\n[p0-1 export surface]')
 const hostSource = await import('node:fs').then(({ readFileSync }) =>
