@@ -1,0 +1,99 @@
+name: check
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        # 0.2.2 是 engines 下界，22 是当前 LTS。两个都跑，是因为插件同时依赖
+        # 宿主 Node 运行时和官方包导出的形状——只在最新版上测，等于只测了一半。
+        node: [20, 22]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ matrix.node }}
+
+      - name: Syntax check both halves
+        run: |
+          node --check lib/index.js
+          node --check lib/client.js
+
+      - name: Host structural tests
+        run: node test/host-check.mjs
+
+      - name: Client structural tests
+        run: node test/client-check.mjs
+
+      # 安装期脚本只校验入口文件存在，不编译、不写盘。在 CI 里跑一遍是为了
+      # 保证它不会在用户机器上意外失败——`prepare` 失败会让整个安装中断。
+      - name: Prepare script (install-time entry check)
+        run: node scripts/verify-entry.mjs
+
+      # 清单必须真的可安装：dsh.bundle 指向的 patch 文件要存在，
+      # exports 里声明的每个子路径都要有对应文件。这几项坏了，用户
+      # `dsh plugin add` 会装出一个空插件。
+      - name: Manifest sanity
+        run: |
+          node -e '
+          const fs = require("node:fs")
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"))
+          const fail = (m) => { console.error("FAIL " + m); process.exitCode = 1 }
+          const ok = (m) => console.log("ok   " + m)
+
+          if (!pkg.dsh?.bundle?.patch) fail("package.json has no dsh.bundle.patch")
+          else if (!fs.existsSync(pkg.dsh.bundle.patch)) fail("dsh.bundle.patch points at a missing file: " + pkg.dsh.bundle.patch)
+          else ok("dsh.bundle.patch exists")
+
+          for (const [sub, target] of Object.entries(pkg.exports ?? {})) {
+            if (typeof target !== "string") continue
+            if (target.includes("*")) {
+              const dir = target.slice(0, target.indexOf("*"))
+              if (!fs.existsSync(dir)) fail(`exports["${sub}"] -> ${dir} does not exist`)
+              else ok(`exports["${sub}"] resolves`)
+              continue
+            }
+            if (!fs.existsSync(target)) fail(`exports["${sub}"] -> ${target} does not exist`)
+            else ok(`exports["${sub}"] exists`)
+          }
+
+          if (!pkg.dsh?.engines?.dsh) fail("package.json has no dsh.engines.dsh")
+          else ok("dsh.engines.dsh declared: " + pkg.dsh.engines.dsh)
+          '
+
+      # 版本号是用户唯一的锚点：README 和 CHANGELOG 说的版本必须和
+      # package.json 一致，否则「我装的是 0.1.3 吗」永远没有答案。
+      - name: Version consistency
+        run: |
+          node -e '
+          const fs = require("node:fs")
+          const version = JSON.parse(fs.readFileSync("package.json", "utf8")).version
+          const changelog = fs.readFileSync("CHANGELOG.md", "utf8")
+          if (!changelog.includes(version)) {
+            console.error(`FAIL CHANGELOG.md has no section for ${version}`)
+            process.exit(1)
+          }
+          console.log(`ok   CHANGELOG.md documents ${version}`)
+          '
+
+      - name: No personal data in tracked files
+        run: |
+          # 这个仓库是公开的。一次误提交的邮箱或绝对路径会永久留在历史里，
+          # 所以在这里挡住，而不是靠人记得。
+          #
+          # 排除这个文件自己：它的正则字面量必然匹配自己，否则守卫一上线
+          # 就先把自己判成违规。
+          if git grep -nIE '450910668|C:\\Users\\[A-Za-z0-9]|sk-[A-Za-z0-9]{20}' \
+               -- . ':!package-lock.json' ':!.github/workflows/check.yml'; then
+            echo "FAIL personal data or a secret-shaped string is tracked"
+            exit 1
+          fi
+          echo "ok   no personal data or secrets in tracked files"

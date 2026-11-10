@@ -1,0 +1,72 @@
+# Changelog
+
+All notable changes to this plugin are documented here. The format follows
+[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project adheres to
+[Semantic Versioning](https://semver.org/spec/v2.0.0.html).
+
+Because this plugin binds to internal DSH contracts that carry no stability promise, a version bump
+here is a statement about **those contracts**, not only about features: a minor bump means the
+integration still targets the same DSH shapes, a major bump means it may not.
+
+## [Unreleased]
+
+Nothing yet.
+
+## [0.1.3] — 2026-11-10
+
+### Fixed
+
+- The section list no longer looks broken when it is merely out of date. Assembly runs on a model
+  request, not on save, so the list was always one request behind; the panel now shows the assembly's
+  clock time and says explicitly when that assembly predates the current override.
+- **Replace everything** mode now labels its section list. The harness replaces the whole section
+  array *after* the `system-prompt/assemble` waterfall, so every observer necessarily sees the
+  pre-replacement list. The panel explains this instead of leaving the user to conclude the override
+  did nothing.
+
+### Added
+
+- `sectionsAt`, `sectionsStale` and `sectionsComplete` on the status payload.
+
+## [0.1.2] — 2026-11-09
+
+### Added
+
+- An entry point in `conversation.hero.options`, so a brand-new conversation can be given a system
+  prompt before its first message. The blank conversation renders with `hideChrome`, which means
+  `conversation.session.header.actions` never mounts there and the panel was previously unreachable
+  until a message had been sent.
+- `showOnNewConversation` config key (default `true`) to turn that second entry point off.
+
+### Fixed
+
+- `scopeGlobalHint` claimed the global default applied to *new* conversations. It applies to every
+  top-level conversation without an override of its own, including ones that already existed.
+
+## [0.1.1] — 2026-11-09
+
+### Fixed
+
+- Forked conversations inherit the nearest upstream override along `parentSession`, with a *Pin*
+  action to freeze the inherited result locally. Previously a fork silently reverted to the default
+  prompt, which was the failure mode hardest to notice.
+- Unsaved edits are guarded: `Esc`, backdrop clicks and the close button all ask before discarding,
+  and `beforeunload` fires only when the panel is actually dirty.
+- The module export surface no longer exposes write paths (`install`, `handlePost`, …) to any
+  same-process importer; test hooks are gated behind `NODE_ENV=test`.
+
+## [0.1.0] — 2026-11-09
+
+### Added
+
+- Initial release: per-conversation system prompt overrides in three modes (append, shadow-replace a
+  named section, replace everything), persisted to `$DSH_HOME/dsh-system-prompt-studio/state.json`.
+- Global default scope for top-level conversations.
+- Read-only assembly observer listing the real section names, order and size.
+- Loopback-only HTTP route for the panel; forged `Host` headers are refused.
+
+[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.2...v0.1.3
+[0.1.2]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.1...v0.1.2
+[0.1.1]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.0...v0.1.1
+[0.1.0]: https://github.com/user-Mrz/dsh-system-prompt-studio/releases/tag/v0.1.0
