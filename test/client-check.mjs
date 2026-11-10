@@ -122,7 +122,13 @@ await import(new URL('../lib/client.js', import.meta.url).href)
 console.log('\n[module]')
 check('通过 __ModuleLoader__ 注册', loaded.length === 1, String(loaded.length))
 const definition = loaded[0]
-check('id 正确', definition?.id === 'dsh-system-prompt-studio', definition?.id)
+// 这个 id 必须和 package.json 的 name 完全一致。client-modules 用它做去重键，
+// 宿主按包名派发同一份 bundle——不一致就是 duplicate factory registration，
+// 整个 web boot 直接失败。改名时最容易忘的就是这里。
+const manifestName = JSON.parse(
+  (await import('node:fs')).readFileSync(new URL('../package.json', import.meta.url), 'utf8'),
+).name
+check('id 与 package.json name 一致', definition?.id === manifestName, `${definition?.id} vs ${manifestName}`)
 check('factory 是函数', typeof definition?.factory === 'function')
 
 const exported = definition.factory(requireShim)

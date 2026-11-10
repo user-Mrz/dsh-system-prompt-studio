@@ -121,6 +121,54 @@ jobs:
           console.log("ok   every exports subpath ships in the tarball")
           '
 
+      # 包名、patch 的 name、client 的注册 id 三者必须一致。
+      #
+      # 这三个是不同层面的东西，改一个忘另外两个会以完全不同的方式炸：
+      #   - patch 的 name 和包名不一致 → loader import 失败，Host 半起不来
+      #   - client 的 id 和包名不一致  → duplicate factory registration，web boot 失败
+      # 两种都只在真正启动 DSH 时才暴露，仓库内测试看不见。0.1.5 就是栽在这里：
+      # 包名改成 scoped 了，client 的 id 还是短名，DSH 直接弹「无法使用」。
+      - name: Package name is consistent across manifest, patch and client
+        run: |
+          node -e '
+          const fs = require("node:fs")
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"))
+          const name = pkg.name
+          let bad = 0
+
+          // patch: loader 按 name import
+          const patchText = fs.readFileSync(pkg.dsh.bundle.patch, "utf8")
+          const patchNames = [...patchText.matchAll(/^\s*name:\s*['"'"'"]?([^'"'"'"\n]+?)['"'"'"]?\s*$/gm)].map((m) => m[1].trim())
+          if (!patchNames.includes(name)) {
+            console.error(`FAIL ${pkg.dsh.bundle.patch} has no entry named "${name}" (found: ${patchNames.join(", ") || "none"})`)
+            bad++
+          } else {
+            console.log(`ok   patch names ${name}`)
+          }
+
+          // client: __ModuleLoader__.load({ id }) 是去重键
+          const clientRel = pkg.exports?.["./client"]
+          const clientPath = typeof clientRel === "string" ? clientRel : clientRel?.default
+          if (typeof clientPath !== "string") {
+            console.error("FAIL package.json exports[./client] is missing")
+            bad++
+          } else {
+            const clientText = fs.readFileSync(clientPath, "utf8")
+            const m = clientText.match(/__ModuleLoader__\.load\(\{\s*id:\s*["'"'"']([^"'"'"']+)["'"'"']/)
+            if (!m) {
+              console.error(`FAIL ${clientPath} has no __ModuleLoader__.load({ id })`)
+              bad++
+            } else if (m[1] !== name) {
+              console.error(`FAIL ${clientPath} registers id "${m[1]}" but the package is "${name}" — this is duplicate factory registration at runtime`)
+              bad++
+            } else {
+              console.log(`ok   client registers id ${name}`)
+            }
+          }
+
+          if (bad) process.exit(1)
+          '
+
       - name: No personal data in tracked files
         run: |
           # 这个仓库是公开的。一次误提交的邮箱或绝对路径会永久留在历史里，

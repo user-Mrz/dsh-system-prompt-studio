@@ -12,6 +12,21 @@ integration still targets the same DSH shapes, a major bump means it may not.
 
 Nothing yet.
 
+## [0.1.7] — 2026-11-10
+
+### Fixed
+
+- **The plugin prevented DSH from starting.** Renaming the package to a scoped name left the client
+  bundle registering itself under the old short id. `client-modules` keys its factory table by
+  `registration.id`, while the host dispatches the same bundle by package name, so the two ids made it
+  register twice and the renderer threw `duplicate factory registration for "dsh-system-prompt-studio"`.
+  DSH showed "无法使用" and refused to boot. The id is now the package name.
+
+  This is the third distinct way the rename broke something, and each one only surfaced at real startup:
+  the profile `bundles` entry, the `cordis.patch.yml` `name`, and now the client id. A CI step now
+  asserts that the manifest name, the patch `name`, and the client `id` are the same string, so the
+  next rename fails in CI instead of on someone's machine.
+
 ## [0.1.6] — 2026-11-10
 
 ### Fixed
@@ -112,7 +127,8 @@ Nothing yet.
 - Read-only assembly observer listing the real section names, order and size.
 - Loopback-only HTTP route for the panel; forged `Host` headers are refused.
 
-[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.3...v0.1.4
