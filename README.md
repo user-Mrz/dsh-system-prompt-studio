@@ -1,10 +1,17 @@
 # dsh-system-prompt-studio
 
+[![npm](https://img.shields.io/npm/v/@user-mrz/dsh-system-prompt-studio.svg)](https://www.npmjs.com/package/@user-mrz/dsh-system-prompt-studio)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
 
 A **[DeepSeek Harness](https://github.com/deepseek-ai)** plugin that lets you inspect and override the
 **system prompt** a conversation actually sends to the model — per conversation, at runtime, without
 restarting.
+
+> **This plugin ships as the scoped npm package
+> [`@user-mrz/dsh-system-prompt-studio`](https://www.npmjs.com/package/@user-mrz/dsh-system-prompt-studio).**
+> An unrelated, unscoped package named `dsh-system-prompt-studio` also exists on npm, maintained by
+> someone else. Installing that one will **not** give you this plugin. Always install the
+> `@user-mrz/`-scoped name.
 
 DSH itself only exposes deployment-wide persona prefix/suffix in configuration files: change one and you
 need a restart, and it affects every session. This plugin moves the same capability to runtime, per
@@ -51,6 +58,9 @@ recover.
 - Node.js ≥ 22.19.0
 
 ## Install
+
+The package lives at **[npmjs.com/package/@user-mrz/dsh-system-prompt-studio](https://www.npmjs.com/package/@user-mrz/dsh-system-prompt-studio)**.
+Install that scoped name — `dsh-system-prompt-studio` without the scope is a different author's package.
 
 From npm (recommended — this is the version that gets version numbers, tags and a published tarball):
 
@@ -318,6 +328,11 @@ DSH 本身只提供配置文件级的人设前后缀：改一次要重启，且�
 装配会报 `multiple complete prompt sections` —— 改回「追加」或「替换」即可恢复。
 
 **安装**
+
+本插件发布为 npm 作用域包
+**[@user-mrz/dsh-system-prompt-studio](https://www.npmjs.com/package/@user-mrz/dsh-system-prompt-studio)**。
+npm 上另有一个**不带作用域**的同名包 `dsh-system-prompt-studio`，那是**另一位作者的另一个项目**，
+装它得不到本插件——请始终使用带 `@user-mrz/` 作用域的名字。
 
 从 npm（推荐，有版本号可锁）：
 

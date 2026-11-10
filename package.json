@@ -39,10 +39,18 @@
     "check": "node --check lib/index.js && node --check lib/client.js && node test/host-check.mjs && node test/client-check.mjs"
   },
   "keywords": [
+    "dsh",
     "dsh-plugin",
+    "dsh-plugins",
+    "deepseek",
     "deepseek-harness",
+    "dsh-desktop",
     "system-prompt",
-    "prompt-engineering"
+    "system-prompt-override",
+    "prompt-engineering",
+    "prompt-management",
+    "prompt-override",
+    "persona"
   ],
   "publishConfig": {
     "access": "public",
