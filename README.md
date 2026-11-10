@@ -52,17 +52,25 @@ recover.
 
 ## Install
 
+From npm (recommended — this is the version that gets version numbers, tags and a published tarball):
+
 ```bash
-dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio
+dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio
+```
+
+From GitHub, which tracks the default branch and therefore needs a ref if you want a fixed version:
+
+```bash
+dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.1.4
 ```
 
 Replace `<profile>` with your profile name — for the Web build that is usually `web`.
 
-**Pin a commit for reproducibility.** Without a ref you get whatever is on the default branch, so any
-later push changes what you install next time:
+**Pin a version for reproducibility.** Without one you get whatever is newest, so a later release
+changes what you install next time:
 
 ```bash
-dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#<commit-sha>
+dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.1.4
 ```
 
 <details>
@@ -108,7 +116,7 @@ A `{"ok":true,...,"capability":{...}}` response means it's working.
 ### Uninstall
 
 ```bash
-dsh plugin --profile <profile> remove dsh-system-prompt-studio
+dsh plugin --profile <profile> remove @user-mrz/dsh-system-prompt-studio
 ```
 
 Your saved overrides are **not** deleted.
@@ -311,14 +319,22 @@ DSH 本身只提供配置文件级的人设前后缀：改一次要重启，且�
 
 **安装**
 
+从 npm（推荐，有版本号可锁）：
+
 ```bash
-dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio
+dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio
 ```
 
-建议锁定 commit，保证装到的是一份确定的代码：
+或从 GitHub（跟随默认分支，建议锁 tag）：
 
 ```bash
-dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#<commit-sha>
+dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.1.4
+```
+
+锁定版本，保证装到的是一份确定的代码：
+
+```bash
+dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.1.4
 ```
 
 `prepare` 脚本只校验入口文件存在，不做编译。若被 pnpm 拦下，把 `pnpm-workspace.yaml` 里

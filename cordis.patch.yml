@@ -39,8 +39,12 @@
 #                      地址 → 页面 origin → http://127.0.0.1:3080）。
 
 - insert:
+    # `id` 是本行的稳定标识，保持短名不变——它是用户 patch 层覆盖的锚点，
+    # 改名会让已有用户的 `- id: dsh-system-prompt-studio` 覆盖失效。
+    # `name` 是 loader 真正 import 的模块名，必须和 package.json 的 name 一致，
+    # 发布到 npm 后就是 scoped 名。
     - id: dsh-system-prompt-studio
-      name: dsh-system-prompt-studio
+      name: '@user-mrz/dsh-system-prompt-studio'
       config:
         enabled: true
         apiPath: /api/system-prompt-studio

@@ -1,8 +1,8 @@
 {
-  "name": "dsh-system-prompt-studio",
+  "name": "@user-mrz/dsh-system-prompt-studio",
   "displayName": "System prompt studio",
-  "description": "按对话查看并覆盖模型实际收到的系统提示词：追加、替换指定段，或完全替换。",
-  "version": "0.1.4",
+  "description": "Per-conversation system prompt control for DeepSeek Harness: append a section, shadow-replace one named section, or replace the whole prompt. Applies on the next model request, persists per session, and inherits along fork lineage.",
+  "version": "0.1.5",
   "type": "module",
   "main": "lib/index.js",
   "exports": {
@@ -15,6 +15,7 @@
   "files": [
     "lib",
     "locale",
+    "scripts",
     "cordis.patch.yml",
     "icon.svg",
     "README.md",
@@ -43,6 +44,10 @@
     "system-prompt",
     "prompt-engineering"
   ],
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org"
+  },
   "author": "user-Mrz",
   "license": "MIT",
   "repository": {

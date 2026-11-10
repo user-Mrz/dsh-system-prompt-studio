@@ -84,6 +84,37 @@ jobs:
           console.log(`ok   CHANGELOG.md documents ${version}`)
           '
 
+      # `prepare` 会跑 scripts/verify-entry.mjs。如果 files 里漏了 scripts/，
+      # 这个脚本在仓库里能跑、打出来的包里却没有——用户 npm install 时直接
+      # MODULE_NOT_FOUND，整个安装失败。仓库内测试永远发现不了这件事，因为
+      # 仓库里 scripts/ 一直在。只有打出来的 tarball 才暴露它。
+      - name: Published tarball is installable
+        run: |
+          npm pack --pack-destination /tmp/pack >/dev/null 2>&1
+          tar -xzf /tmp/pack/*.tgz -C /tmp/pack
+          cd /tmp/pack/package
+
+          if [ ! -f scripts/verify-entry.mjs ]; then
+            echo "FAIL scripts/verify-entry.mjs is not in the published tarball"
+            echo "     prepare would fail with MODULE_NOT_FOUND on every install"
+            exit 1
+          fi
+          node scripts/verify-entry.mjs
+          echo "ok   published tarball runs prepare"
+
+          # exports 里每个真实子路径都要在包里存在，否则 require 会失败。
+          node -e '
+          const fs = require("node:fs")
+          const pkg = JSON.parse(fs.readFileSync("package.json", "utf8"))
+          let bad = 0
+          for (const [sub, target] of Object.entries(pkg.exports ?? {})) {
+            if (typeof target !== "string" || target.includes("*")) continue
+            if (!fs.existsSync(target)) { console.error(`FAIL exports["${sub}"] -> ${target} missing from tarball`); bad++ }
+          }
+          if (bad) process.exit(1)
+          console.log("ok   every exports subpath ships in the tarball")
+          '
+
       - name: No personal data in tracked files
         run: |
           # 这个仓库是公开的。一次误提交的邮箱或绝对路径会永久留在历史里，

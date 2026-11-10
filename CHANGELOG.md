@@ -12,6 +12,26 @@ integration still targets the same DSH shapes, a major bump means it may not.
 
 Nothing yet.
 
+## [0.1.5] — 2026-11-10
+
+### Changed
+
+- The package is now published to npm as `@user-mrz/dsh-system-prompt-studio`. The unscoped name
+  `dsh-system-prompt-studio` was already taken on npm, so the scoped name keeps the same identity under
+  a namespace the author controls.
+- `cordis.patch.yml` keeps `id: dsh-system-prompt-studio` but its `name` is now the scoped package. The
+  loader imports the row by `name`, so those two must agree; `id` is the anchor existing users override
+  by, so renaming it would silently drop their patch entries.
+- `description` in `package.json` is now English, since that is what npm renders in search results.
+
+### Fixed
+
+- **The published tarball could not be installed.** `files` omitted `scripts/`, so `prepare` — which
+  runs `scripts/verify-entry.mjs` — failed with `MODULE_NOT_FOUND` on every install. The repository
+  always had that directory, which is exactly why no test here could see it; only the packed tarball
+  exposes the gap. `scripts` is now included, and CI unpacks the real tarball and runs `prepare` inside
+  it, so this class of mistake cannot ship again.
+
 ## [0.1.4] — 2026-11-10
 
 ### Fixed
@@ -83,7 +103,8 @@ Nothing yet.
 - Read-only assembly observer listing the real section names, order and size.
 - Loopback-only HTTP route for the panel; forged `Host` headers are refused.
 
-[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.1...v0.1.2
