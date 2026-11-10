@@ -521,7 +521,15 @@ if (observers.length === 1) {
   check('complete 保存成功', saved.status === 200, saved.text)
   const stale = await callRoute(route, { url: '/api/system-prompt-studio?session=session-a' })
   check('保存后清单被标记为过期', stale.json?.sectionsStale === true, String(stale.json?.sectionsStale))
-  check('过期判定基于 updatedAt > 装配时间', watchedAt > 0 && stale.json?.session?.updatedAt > watchedAt)
+  // 判过期靠写入序号，不靠时间戳：两者可能落在同一毫秒，那时 `updatedAt >
+  // watch.at` 为假，一份真正过期的清单会被判成最新。
+  check(
+    '过期判定基于写入序号',
+    typeof stale.json?.session?.writeSeq === 'number' &&
+      typeof before.json?.sectionsSeq === 'number' &&
+      stale.json.session.writeSeq > before.json.sectionsSeq,
+    `entry.writeSeq=${stale.json?.session?.writeSeq} watch.seq=${before.json?.sectionsSeq}`,
+  )
   check('complete 模式 sectionsComplete=true', stale.json?.sectionsComplete === true, String(stale.json?.sectionsComplete))
   check('complete 模式仍返回压缩前的全量清单', Array.isArray(stale.json?.sections) && stale.json.sections.length === 4)
   // 回到 append，标记必须跟着消失。

@@ -12,6 +12,24 @@ integration still targets the same DSH shapes, a major bump means it may not.
 
 Nothing yet.
 
+## [0.1.4] — 2026-11-10
+
+### Fixed
+
+- The "section list is out of date" warning was decided by comparing millisecond timestamps. A save and
+  an assembly can land in the same millisecond — in the test suite they almost always do — and then
+  `updatedAt > assembly.at` is false, so a genuinely stale list was reported as current and the panel
+  stayed silent. Staleness is now decided by a monotonic write sequence instead. The sequence resumes
+  from the highest value in the state file on startup, so a restart cannot make a new write look older
+  than a stored one.
+
+### Added
+
+- CI workflow (`.github/workflows/check.yml`) on Node 20 and 22: syntax, both structural test suites,
+  the install-time `prepare` script, manifest sanity (`dsh.bundle.patch` exists, every `exports` subpath
+  resolves), version/CHANGELOG consistency, and a guard against committed personal data.
+- `sectionsSeq` on the status payload, for the staleness comparison.
+
 ## [0.1.3] — 2026-11-10
 
 ### Fixed
@@ -65,7 +83,8 @@ Nothing yet.
 - Read-only assembly observer listing the real section names, order and size.
 - Loopback-only HTTP route for the panel; forged `Host` headers are refused.
 
-[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.2...v0.1.3
 [0.1.2]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.1...v0.1.2
 [0.1.1]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.0...v0.1.1
