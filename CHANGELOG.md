@@ -12,6 +12,21 @@ integration still targets the same DSH shapes, a major bump means it may not.
 
 Nothing yet.
 
+## [0.1.8] — 2026-11-10
+
+### Fixed
+
+- The README shipped inside the published 0.1.7 tarball still pinned 0.1.4 in its install examples.
+  0.1.7 went out before that documentation fix landed, so the tarball carries the stale text even
+  though the repository no longer does. This release republishes the same code with the corrected
+  README.
+
+### Added
+
+- A CI step fails when any version pinned in the README install examples (`#v1.2.3`, `@1.2.3`) differs
+  from `package.json`. Nothing went red when those drifted, and a reader would copy a command
+  installing a version two releases behind the one being described.
+
 ## [0.1.7] — 2026-11-10
 
 ### Fixed
@@ -127,7 +142,8 @@ Nothing yet.
 - Read-only assembly observer listing the real section names, order and size.
 - Loopback-only HTTP route for the panel; forged `Host` headers are refused.
 
-[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.8...HEAD
+[0.1.8]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.4...v0.1.5
