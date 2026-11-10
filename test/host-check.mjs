@@ -498,6 +498,41 @@ if (observers.length === 1) {
   check('观察后能列出段清单', Array.isArray(after.json?.sections) && after.json.sections.length === 4, JSON.stringify(after.json?.sections))
   check('段清单含顺序', after.json?.sections?.[0]?.order === -1000, JSON.stringify(after.json?.sections?.[0]))
   check('段清单记录字符数', after.json?.sections?.[2]?.chars === 'dshm text'.length)
+  // 清单是快照，必须带时间戳，否则用户无从判断它是不是旧的。
+  check('段清单带装配时间戳', typeof after.json?.sectionsAt === 'number' && after.json.sectionsAt > 0, String(after.json?.sectionsAt))
+  check('无覆盖时段清单不算过期', after.json?.sectionsStale === false, String(after.json?.sectionsStale))
+  check('非 complete 模式 sectionsComplete=false', after.json?.sectionsComplete === false, String(after.json?.sectionsComplete))
+}
+
+// ── 13c. 段清单的滞后与 complete 标记 ───────────────────────────────────
+// 两个真实存在、且都会让人误判「保存没生效」的场景，各给一个可观测字段。
+console.log('\n[stale + complete]')
+if (observers.length === 1) {
+  // 先观察一次，把 watch.at 固定在「现在」。
+  const before = await callRoute(route, { url: '/api/system-prompt-studio?session=session-a' })
+  const watchedAt = before.json?.sectionsAt ?? 0
+  // 保存一个 complete 覆盖：updatedAt 必然晚于上面那次装配。
+  const saved = await post(route, {
+    action: 'set',
+    scope: 'session',
+    sessionId: 'session-a',
+    patch: { enabled: true, mode: 'complete', text: 'only this', target: '' },
+  })
+  check('complete 保存成功', saved.status === 200, saved.text)
+  const stale = await callRoute(route, { url: '/api/system-prompt-studio?session=session-a' })
+  check('保存后清单被标记为过期', stale.json?.sectionsStale === true, String(stale.json?.sectionsStale))
+  check('过期判定基于 updatedAt > 装配时间', watchedAt > 0 && stale.json?.session?.updatedAt > watchedAt)
+  check('complete 模式 sectionsComplete=true', stale.json?.sectionsComplete === true, String(stale.json?.sectionsComplete))
+  check('complete 模式仍返回压缩前的全量清单', Array.isArray(stale.json?.sections) && stale.json.sections.length === 4)
+  // 回到 append，标记必须跟着消失。
+  const back = await post(route, {
+    action: 'set',
+    scope: 'session',
+    sessionId: 'session-a',
+    patch: { enabled: true, mode: 'append', text: 'plain', target: '' },
+  })
+  check('切回 append 成功', back.status === 200, back.text)
+  check('切回 append 后 sectionsComplete=false', back.json?.sectionsComplete === false, String(back.json?.sectionsComplete))
 }
 
 // ── 13b. 顺序推算 ───────────────────────────────────────────────────────

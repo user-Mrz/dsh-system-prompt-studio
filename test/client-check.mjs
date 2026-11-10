@@ -278,6 +278,11 @@ check('保存成功后重置基线', clientSource.includes('setBaseline({ mode, 
 check('dirty 由基线现算', clientSource.includes('const dirty ='))
 check('存在 pin 请求', clientSource.includes("action: 'pin'"))
 check('存在继承来源展示', clientSource.includes("t('inheritedFrom')"))
+// 段清单的两个误导场景：滞后快照、complete 压缩发生在观察器之后。
+check('段清单显示装配时间', clientSource.includes('formatClock') && clientSource.includes('sectionsAtText'))
+check('滞后清单有提示', clientSource.includes("t('sectionsStaleNote')"))
+check('complete 有清单说明', clientSource.includes("t('sectionsCompleteNote')"))
+check('时间戳格式函数存在', /function formatClock\s*\(/.test(clientSource))
 
 // ── P0-1 导出面收敛 ─────────────────────────────────────────────────────
 console.log('\n[p0-1 export surface]')

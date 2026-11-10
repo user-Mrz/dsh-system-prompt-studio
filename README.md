@@ -154,6 +154,17 @@ which shadows the first-party one. There is no separate API for it — that *is*
 The panel's section list comes from the live assembly, so the names are real. Pick from the dropdown
 rather than typing from memory: several names are easy to guess wrong.
 
+### The section list is a snapshot, not a live view
+
+Assembly happens when a model request runs; saving does not trigger one. So the section list is always
+**one request behind** your last save. The panel shows the time of the assembly it came from, and says so
+explicitly when that assembly predates your save — send one message and reopen to see the new result.
+
+In **Replace everything** mode the list is always the *pre-replacement* set. That is not a bug: the
+harness applies a `complete` section by replacing the whole section array *after* the assembly hook has
+already run, so any observer — including this one — necessarily sees the full list first. The panel labels
+this case instead of leaving you to wonder why every section is still listed.
+
 > An assembled section carries only `name` / `text` / `interpolate` — **not** its sort order. The plugin
 > reconstructs order from known constants plus position in the assembly array
 > ([`deriveOrders`](lib/index.js)). Unknown names land near where they actually belong; a name that
@@ -320,6 +331,14 @@ dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#<com
 **新开的空对话**标题栏是隐藏的，入口改在欢迎区（文字为「设置系统提示词」）—— 会话一创建 agent
 就已经在了，所以这里保存的覆盖**从第一句话**就生效，不是等到第二句。
 面板底部两个只读区块分别显示「最近一次请求真正发出的系统提示词」与「本次装配到的段清单」。
+
+**段清单是快照，不是实时视图**：装配只在模型请求时发生，保存不会触发它，所以清单总是比你刚才的
+保存**晚一个请求**。面板会标出这份清单来自哪一次装配（时分秒），并在它早于你的保存时明确提示
+「这是保存前的清单」——发一条消息再打开就能看到新结果。
+
+**「完全替换」模式下清单永远是替换前的全量**。这不是 bug：DSH 在装配钩子**之后**才把 sections
+整体换成 `[completeSection]`，所以任何观察者（包括本插件）必然先看到全量。面板会把这种情况标出来，
+而不是让你对着几十个段怀疑替换没生效。
 
 **新对话怎么生效**：「本对话」只作用于这一个新对话；「全局默认」作用于**所有没有自身覆盖的顶层
 对话**——包括保存时就已经存在的那些，它是「兜底」而不是「只对新对话」。
