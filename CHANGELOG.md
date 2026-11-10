@@ -12,6 +12,15 @@ integration still targets the same DSH shapes, a major bump means it may not.
 
 Nothing yet.
 
+## [0.1.6] — 2026-11-10
+
+### Fixed
+
+- The new "published tarball is installable" CI step failed on both Node versions with nothing but
+  `exit code 254`. Cause: it packed into `/tmp/pack`, which does not exist, and redirected
+  `npm pack`'s output to `/dev/null`, so the real error was discarded. A check written to prevent
+  silent failures failed silently on its first run. It now uses `mktemp -d` and lets `npm pack` print.
+
 ## [0.1.5] — 2026-11-10
 
 ### Changed
@@ -103,7 +112,8 @@ Nothing yet.
 - Read-only assembly observer listing the real section names, order and size.
 - Loopback-only HTTP route for the panel; forged `Host` headers are refused.
 
-[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.5...v0.1.6
 [0.1.5]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.4...v0.1.5
 [0.1.4]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.3...v0.1.4
 [0.1.3]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.2...v0.1.3

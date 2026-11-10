@@ -88,11 +88,17 @@ jobs:
       # 这个脚本在仓库里能跑、打出来的包里却没有——用户 npm install 时直接
       # MODULE_NOT_FOUND，整个安装失败。仓库内测试永远发现不了这件事，因为
       # 仓库里 scripts/ 一直在。只有打出来的 tarball 才暴露它。
+      #
+      # 注意不要把 npm pack 的错误吞掉：第一次写这一步时加了 `2>&1`，
+      # 而 --pack-destination 指向一个不存在的目录，结果整步只输出
+      # "exit code 254"、一行原因都没有——一个为了防静默失败而写的检查，
+      # 自己先静默失败了。
       - name: Published tarball is installable
         run: |
-          npm pack --pack-destination /tmp/pack >/dev/null 2>&1
-          tar -xzf /tmp/pack/*.tgz -C /tmp/pack
-          cd /tmp/pack/package
+          pack_dir="$(mktemp -d)"
+          npm pack --pack-destination "$pack_dir"
+          tar -xzf "$pack_dir"/*.tgz -C "$pack_dir"
+          cd "$pack_dir/package"
 
           if [ ! -f scripts/verify-entry.mjs ]; then
             echo "FAIL scripts/verify-entry.mjs is not in the published tarball"
