@@ -12,6 +12,30 @@ integration still targets the same DSH shapes, a major bump means it may not.
 
 Nothing yet.
 
+## [0.1.9] — 2026-11-10
+
+### Changed
+
+- The README now says which npm package this is. It described the install as coming "from npm" without
+  ever naming the npm page, so a reader could not tell this plugin apart from the unrelated **unscoped**
+  `dsh-system-prompt-studio` package — a different author's project that npm search ranks first because
+  it has downloads and this one does not. Both the English and Chinese install sections now state the
+  scoped name, link the npm page, and warn that the unscoped name is someone else's. A badge at the top
+  carries the same link.
+- `package.json` keywords now include the terms npm actually indexes (`dsh`, `dsh-plugins`, `deepseek`,
+  `dsh-desktop`, `system-prompt-override`, `prompt-override`, `prompt-management`, `persona`). The old
+  four terms were accurate but too narrow to reach anyone browsing by topic.
+- The repository's GitHub **Homepage** field now points at the npm page instead of back at the repo,
+  which is where a visitor deciding whether to install looks first.
+
+### Note
+
+Being findable in npm search is governed by download count, not by metadata: this package is indexed
+with `searchScore: 0` and sits at rank 989 of 999 for `keywords:prompt-engineering`, while a package
+with 538 downloads and the same score is equally invisible. Nothing in this release changes that; the
+keywords above only help when someone searches by term, and the README and Homepage changes make the
+scoped name unambiguous for anyone who arrives from GitHub.
+
 ## [0.1.8] — 2026-11-10
 
 ### Fixed
@@ -142,7 +166,8 @@ Nothing yet.
 - Read-only assembly observer listing the real section names, order and size.
 - Loopback-only HTTP route for the panel; forged `Host` headers are refused.
 
-[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.8...HEAD
+[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.9...HEAD
+[0.1.9]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.7...v0.1.8
 [0.1.7]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.6...v0.1.7
 [0.1.6]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.5...v0.1.6
