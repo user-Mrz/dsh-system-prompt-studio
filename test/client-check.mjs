@@ -299,6 +299,14 @@ check('算出会丢掉的段', clientSource.includes('droppedSections'))
 check('排除 studio 自己的段', clientSource.includes("studio:complete', 'studio:append'"))
 check('累加被丢弃的字符数', clientSource.includes('dropped.reduce'))
 check('识别第三方插件注册的段', clientSource.includes('FIRST_PARTY'))
+// 前缀启发式会同时漏判和误判，所以改成「第一方内置段名」白名单：
+//   - dsh-m 把段注册成 `tool:dshm`，前缀像第一方，实际是插件；
+//   - 0.2.2-rc.2 的 dsh-cua 注册 `computer-use:dsh-cua`，不是 `tool:` 前缀，实际是第一方。
+check('第一方判定用白名单而非前缀正则', clientSource.includes('const FIRST_PARTY = new Set(['))
+check('白名单不含前缀正则', !clientSource.includes("const FIRST_PARTY = /^("))
+check('tool:dshm 不在第一方白名单（它是插件段）', !/FIRST_PARTY = new Set\(\[[\s\S]*?'tool:dshm'/.test(clientSource))
+check('computer-use:dsh-cua 也不在第一方白名单', !/FIRST_PARTY = new Set\(\[[\s\S]*?'computer-use:dsh-cua'/.test(clientSource))
+check('第一方工具段仍在白名单', clientSource.includes("'tool:pwsh'") && clientSource.includes("'tool:subagent_fork'"))
 check('清单可读时逐条列出', clientSource.includes("t('completeDrops')") && clientSource.includes('dropitem'))
 check('超出上限折叠为「还有 N 个」', clientSource.includes("t('completeDropsMore')"))
 check('冷会话如实说无法列举', clientSource.includes("t('completeDropsUnknown')"))

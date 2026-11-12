@@ -559,6 +559,35 @@ check('未知段落在中段区间内', (derived[3]?.order ?? 0) > 0 && (derived
 const monotonic = derived.every((row, index) => index === 0 || (row.order ?? 0) > (derived[index - 1].order ?? 0))
 check('推算结果严格递增', monotonic, JSON.stringify(derived.map((r) => r.order)))
 
+// ── 13c. 0.2.2-rc.2 新增段的顺序常量 ────────────────────────────────────
+// rc.2 的 SECTION_ORDERS 比 rc.1 多两项：TOOL_PTY_PANEL = 1710 与
+// TOOL_COMPUTER_USE = 3000。写死表若不同步，这两段会被当成「未知段」按相邻
+// 锚点均分推算 —— 不报错，但「替换指定段」选不中它们，清单里的顺序也会偏。
+console.log('\n[rc.2 section orders]')
+const rc2 = mod.__internals.deriveOrders([
+  { name: 'tool:jobs', chars: 1 },
+  { name: 'tool:pty', chars: 1 },
+  { name: 'tool:pty-panel', chars: 1 },
+  { name: 'tool:web_search', chars: 1 },
+  { name: 'tool:subagent', chars: 1 },
+  { name: 'tool:report', chars: 1 },
+  { name: 'computer-use:dsh-cua', chars: 1 },
+  { name: 'mcp-resource-servers', chars: 1 },
+])
+const byName = Object.fromEntries(rc2.map((row) => [row.name, row.order]))
+check('tool:pty-panel 用官方常量 1710', byName['tool:pty-panel'] === 1710, String(byName['tool:pty-panel']))
+check('computer-use:dsh-cua 用官方常量 3000', byName['computer-use:dsh-cua'] === 3000, String(byName['computer-use:dsh-cua']))
+check(
+  'rc.2 新增段落在正确邻居之间',
+  byName['tool:pty'] < byName['tool:pty-panel'] && byName['tool:pty-panel'] < byName['tool:web_search'],
+  JSON.stringify([byName['tool:pty'], byName['tool:pty-panel'], byName['tool:web_search']]),
+)
+check(
+  'cua 段排在 subagent/report 之后、mcp 之前',
+  byName['tool:report'] < byName['computer-use:dsh-cua'] && byName['computer-use:dsh-cua'] < byName['mcp-resource-servers'],
+  JSON.stringify([byName['tool:report'], byName['computer-use:dsh-cua'], byName['mcp-resource-servers']]),
+)
+
 // ── 14. 损坏文件 ────────────────────────────────────────────────────────
 console.log('\n[corrupt]')
 const corruptDir = join(workdir, 'dsh-system-prompt-studio')

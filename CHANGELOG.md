@@ -12,6 +12,40 @@ integration still targets the same DSH shapes, a major bump means it may not.
 
 Nothing yet.
 
+## [0.2.1] — 2026-11-12
+
+### Fixed
+
+- **The section-order table was one DSH release behind.** DSH `0.2.2-rc.2` added two entries to
+  `SECTION_ORDERS`: `TOOL_PTY_PANEL` (1710) and `TOOL_COMPUTER_USE` (3000). Neither was in this plugin's
+  hardcoded copy, so they were treated as unknown sections and given an interpolated order from their
+  neighbours. Nothing failed, but "Replace a section" could not select them and the panel's order column
+  drifted for them. Both are now recorded under the names they actually assemble as: `tool:pty-panel`
+  (registered by `dsh-terminal-panel`) and `computer-use:dsh-cua` (registered by `dsh-cua`).
+
+- **The section listing behind "Replace everything" misjudged plugin sections in both directions.** It
+  decided ownership from a name prefix, which was wrong twice over. `dsh-m` registers its section as
+  `tool:dshm`, which looks first-party and was silently counted as such; `dsh-cua`'s
+  `computer-use:dsh-cua` does not start with a first-party prefix and would have been counted as a
+  plugin. The check is now a whitelist of the section names first-party packages actually register, so
+  anything not on it is reported as a plugin's. That errs toward over-reporting, which is the safe
+  direction: a user is sent to read the list, rather than having a plugin's silent failure hidden from
+  them. On a profile running `dsh-m`, the count now correctly includes `tool:dshm`.
+
+### Changed
+
+- Four new host checks pin the two `rc.2` order constants and their position relative to their
+  neighbours; five new client checks pin the whitelist, including that neither `tool:dshm` nor
+  `computer-use:dsh-cua` is on it.
+
+### Note
+
+No DSH surface this plugin uses changed shape in `0.2.2-rc.2`: `system-prompt/assemble` keeps its
+`(assembly, context, next)` waterfall signature, `systemPrompt.section()` and the `PromptSection` fields
+are unchanged, and the `agents` / `sessions` / `webServer` services are as before. The two order
+constants were the only drift. `engines.dsh` still reads `>=0.2.2-0 <0.3.0-0`, which already admits
+`0.2.2-rc.2`; no dependency range changed.
+
 ## [0.2.0] — 2026-11-10
 
 ### Added
@@ -197,7 +231,8 @@ scoped name unambiguous for anyone who arrives from GitHub.
 - Read-only assembly observer listing the real section names, order and size.
 - Loopback-only HTTP route for the panel; forged `Host` headers are refused.
 
-[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.9...v0.2.0
 [0.1.9]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.8...v0.1.9
 [0.1.8]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.7...v0.1.8
