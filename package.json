@@ -1,8 +1,8 @@
 {
   "name": "@user-mrz/dsh-system-prompt-studio",
   "displayName": "System prompt studio",
-  "description": "Per-conversation system prompt control for DeepSeek Harness: append a section, shadow-replace one named section, or replace the whole prompt. Applies on the next model request, persists per session, and inherits along fork lineage.",
-  "version": "0.2.1",
+  "description": "Per-conversation and per-workspace system prompt control for DeepSeek Harness: append a section, shadow-replace one named section, or replace the whole prompt. Applies on the next model request, persists per session and per working directory, and inherits along fork lineage.",
+  "version": "0.3.0",
   "type": "module",
   "main": "lib/index.js",
   "exports": {

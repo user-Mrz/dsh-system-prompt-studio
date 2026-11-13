@@ -12,6 +12,73 @@ integration still targets the same DSH shapes, a major bump means it may not.
 
 Nothing yet.
 
+## [0.3.0] — 2026-11-13
+
+### Added
+
+- **Workspace-level overrides.** There were two scopes — this conversation, and the global default —
+  with nothing in between, which is the wrong shape for the most common need: rules that belong to a
+  project. "Be terse, this repo has no test suite" had to be re-typed into every conversation opened in
+  that directory, or pushed into the global default where it leaks into unrelated work. The panel now has
+  a third scope, **This workspace**, keyed on the conversation's current working directory.
+
+  The precedence chain is, from most to least specific: this conversation → inherited from a fork →
+  **this workspace** → global default. Workspace sits above the global default because it is narrower;
+  below a fork's inherited rules because a fork carries the context of the work it branched from, and a
+  rule the user wrote for that specific branch is a more specific statement than the directory's default.
+
+  Two deliberate asymmetries:
+
+  - `workspaceScope` defaults to `all` (subagents included) while `globalDefaultScope` defaults to
+    `roots`. A global persona leaking into a tool-shaped subagent pollutes it; a project's rules
+    *should* reach the subagents doing that project's work, or the actual workers are the ones not
+    following them.
+  - `resetAll` clears per-conversation entries and leaves workspace entries alone. Workspace rules are
+    accumulated project configuration, not per-conversation scratch state; destroying them behind a
+    button labelled "clear all conversation overrides" would be unrecoverable and unexpected.
+
+- **Directory changes are reconciled at assembly time.** `workingDirectory.set` (a user switching a
+  conversation to another project) emits no event, so a signature computed at install time would leave
+  the old directory's rules in force with nothing to explain it. The assembly listener now recomputes
+  each live agent's signature and reinstalls on a mismatch. It runs after the sections are already
+  collected, so the current request is unaffected and the change lands on the next one.
+
+### Fixed
+
+- **The workspace key is not `workingDirectory.get()`.** That call returns
+  `stateOf(session) ?? defaultDirectory`, so a conversation that never changed directory reports the
+  *deployment default* directory rather than its own project. Keying on it directly would have collapsed
+  every conversation onto one workspace entry — rules saved in one project applying in another, with
+  nothing on screen to explain it. The key now comes from `workspaceRegistry` first (the workspace the
+  sidebar shows), then `workingDirectory.get()` **only when it differs from `defaultDirectory`** (i.e. a
+  change was really committed), then the session's recorded `header.cwd`.
+
+- **Cold conversations could not use the workspace scope at all.** Resolving the workspace required a
+  `Session` object, and a cold conversation is neither a live agent nor in the in-memory session store,
+  so the lookup returned nothing: the panel showed "no usable workspace" and a conversation that had not
+  been resumed yet could not be given its project's rules. The registry is durable, so its ownership
+  lookup now runs on the bare session id alone, and the `Session`-dependent fallbacks are only tried when
+  one is actually available. A rule saved from a cold conversation applies to its live siblings
+  immediately.
+
+### Security
+
+- **The workspace path is derived on the host, never supplied by the panel.** A workspace save sends a
+  `sessionId`; the host resolves that conversation's current directory itself. Accepting an arbitrary
+  path from the client would let any same-origin script write rules for directories the user never
+  opened — the loopback fence stops remote callers but not injected script. An explicit `workspaceKey`
+  field is still accepted when no `sessionId` is given, for scripts and tests, and passes the same
+  normalisation.
+
+### Changed
+
+- Workspace keys are normalised paths, not `workspaceRegistry` ids: separators unified, trailing and
+  duplicate separators collapsed, `.` segments dropped, case folded on Windows. Re-registering a deleted
+  workspace would mint a new id, and a user's project rules should not evaporate because of that. The
+  *path* is read from the registry entry; the *id* is deliberately not used as the key.
+- An unknown `scope` value still falls back to `session` rather than to `global`. Falling back to
+  `global` on a typo would silently rewrite every conversation while the user believes they edited one.
+
 ## [0.2.1] — 2026-11-12
 
 ### Fixed
@@ -231,7 +298,8 @@ scoped name unambiguous for anyone who arrives from GitHub.
 - Read-only assembly observer listing the real section names, order and size.
 - Loopback-only HTTP route for the panel; forged `Host` headers are refused.
 
-[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.2.1...HEAD
+[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.3.0...HEAD
+[0.3.0]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.9...v0.2.0
 [0.1.9]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.8...v0.1.9

@@ -27,6 +27,11 @@
 #   maxObservedScopes  观察缓存的作用域上限（FIFO 淘汰），防止长期运行堆积。
 #   globalDefaultScope 「全局默认」套用到哪些会话：roots（默认，只套用到顶层会话，
 #                      不碰子代理）| all（含子代理）。
+#   workspaceScope      「工作区级」规则套用到哪些会话：all（默认，含子代理）|
+#                      roots（只套用到顶层会话）。
+#                      默认值与 globalDefaultScope 不同是有意的：全局默认是「所有
+#                      对话的人格」，漏进子代理会污染工具型子任务；工作区级是
+#                      「这个项目的规矩」，子代理正是替这个项目干活的那批。
 #   inheritOnFork       fork 继承：子会话没有自身覆盖时，沿 parentSession 链向上找。
 #                      true（默认）| false（各会话独立，退回旧行为）。
 #   maxInheritDepth     继承最多上溯几层（1–8，默认 3）。0 等同于关闭继承。
@@ -57,6 +62,7 @@
         observeAssemblies: true
         maxObservedScopes: 64
         globalDefaultScope: roots
+        workspaceScope: all
         inheritOnFork: true
         maxInheritDepth: 3
         visible: true

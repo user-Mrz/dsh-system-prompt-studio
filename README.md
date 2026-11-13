@@ -34,7 +34,8 @@ session, effective immediately.
   | **Replace everything** | Your text becomes the entire system prompt. Highest risk: drops first-party guidance **and every other plugin's sections** — see below. |
 
 - **Applies on the next model request.** No restart, no reload.
-- **Persists per session**, and a **global default** applies to new conversations automatically.
+- **Three scopes**: this conversation, **this workspace** (a directory), or the global default. Rules
+  persist per session *and* per working directory.
 - **Inherits across forks.** A forked conversation picks up its parent's rules along the `parentSession`
   chain, with a **Pin** action to freeze the inherited result locally.
 - **Guards unsaved edits.** Esc, backdrop click and the close button all ask before discarding.
@@ -89,7 +90,7 @@ dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio
 From GitHub, which tracks the default branch and therefore needs a ref if you want a fixed version:
 
 ```bash
-dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.2.1
+dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.3.0
 ```
 
 Replace `<profile>` with your profile name — for the Web build that is usually `web`.
@@ -98,7 +99,7 @@ Replace `<profile>` with your profile name — for the Web build that is usually
 changes what you install next time:
 
 ```bash
-dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.2.1
+dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.3.0
 ```
 
 <details>
@@ -157,12 +158,50 @@ Your saved overrides are **not** deleted.
    conversation already has its own override). On a **brand-new conversation** the title bar is
    hidden by the harness, so the button lives in the welcome area instead, labeled
    **Set system prompt**.
-2. Pick a scope: **this conversation** or **global default**. The global default applies to top-level
-   conversations only — not to subagents.
+2. Pick a scope — **this conversation**, **this workspace**, or **global default**. The global default
+   applies to top-level conversations only (not subagents); the workspace scope applies to every
+   conversation whose working directory is that directory, subagents included.
 3. Choose a mode, write your text, save. It takes effect on your next message.
 4. Expand the two read-only blocks at the bottom to check reality:
    - *System prompt of the latest request* — what was actually sent;
    - *Sections assembled for this conversation* — real section names, order and size.
+
+### Scopes and precedence
+
+From most specific to least, the first one that exists wins:
+
+| # | Scope | Applies to | Survives a new conversation? |
+| --- | --- | --- | --- |
+| 1 | **This conversation** | exactly one conversation | no |
+| 2 | **Inherited from a fork** | that fork and its descendants | n/a (lineage) |
+| 3 | **This workspace** | every conversation in that directory | **yes** |
+| 4 | **Global default** | every top-level conversation | yes |
+
+The workspace scope sits above the global default because it is narrower — a project's rules should not
+be overridden by a blanket persona. It sits *below* a fork's inherited rules because a fork carries the
+context of the work it branched from, and a rule written for that specific branch is a more specific
+statement than the directory's default.
+
+**The directory is resolved from the workspace registry first.** The panel shows the resolved path next to
+the tabs. Priority: the workspace this conversation belongs to in `workspaceRegistry` (the one you see in
+the sidebar), then — only when no workspace owns it — the conversation's current directory, then the
+directory recorded when the conversation was created.
+
+That ordering matters more than it looks. `workingDirectory.get()` returns the **deployment default
+directory** for a conversation that never changed directory, not its own project; keying on it directly
+would make every conversation share one workspace entry, so rules saved in one project would apply in
+another. It is therefore only trusted when it differs from that default, i.e. when a change was really
+committed.
+
+The panel displays the **original path spelling**, not the normalised key: normalisation lowercases the
+Windows drive and directory names, which is right for matching and wrong for a path a user is meant to
+recognise.
+
+The path is resolved on the host — the panel never sends one, so a same-origin script cannot write rules
+for directories you never opened.
+
+`resetAll` (the API action that clears every per-conversation override) **does not** touch workspace
+entries: those are accumulated project configuration, not per-conversation scratch state.
 
 ### Can I set the prompt of a conversation that hasn't started yet?
 
@@ -170,17 +209,17 @@ Yes, and it applies from the **first** message, not the second. The harness crea
 moment the conversation exists — before you type anything — so the override is already registered by
 the time your first prompt is assembled. Open the welcome-area button and save.
 
-Two ways to cover a new conversation:
+Three ways to cover a new conversation:
 
 | Want | Do this |
 | --- | --- |
 | Just this one new conversation | Open its welcome-area button → **this conversation** → save |
+| Every conversation in this project | Open the button in any conversation in that directory → **this workspace** → save |
 | Every top-level conversation that has no override of its own | Open the button in any conversation → **global default** → save |
 
-The global default is **not** limited to conversations created after you save it: it is re-evaluated
-for every live conversation on each save, so existing top-level conversations without an override of
-their own pick it up immediately too. A conversation that has its own override keeps it — the global
-default only fills in where nothing more specific exists.
+The global default and the workspace rules are **not** limited to conversations created after you save
+them: both are re-evaluated for every live conversation on each save, so existing conversations without
+something more specific pick them up immediately too. A conversation that has its own override keeps it.
 
 ### Choosing a section to replace
 
@@ -239,6 +278,7 @@ Edit the row in `cordis.patch.yml` or override it in your profile patch. The mos
 | `globalDefaultScope` | `roots` | Whether the global default also applies to subagents (`all` to include) |
 | `inheritOnFork` | `true` | Whether forked conversations inherit upstream rules |
 | `maxInheritDepth` | `3` | How many levels to walk up (1–8); `0` behaves like off |
+| `workspaceScope` | `all` | Whether workspace rules also apply to subagents (`roots` for top-level only) |
 | `observeAssemblies` | `true` | Read-only assembly observer; required for the section list |
 | `visible` | `true` | Whether the panel button is shown (client-side) |
 | `showOnNewConversation` | `true` | Whether the welcome area of a brand-new conversation also gets a button (client-side) |
@@ -254,9 +294,17 @@ Every key is documented in [`cordis.patch.yml`](cordis.patch.yml).
 {
   "version": 1,
   "global":  { "enabled": false, "mode": "append", "text": "", "target": "", "updatedAt": 0 },
-  "sessions": { "<sessionId>": { "enabled": true, "mode": "append", "text": "…", "target": "", "updatedAt": 0 } }
+  "sessions": { "<sessionId>": { "enabled": true, "mode": "append", "text": "…", "target": "", "updatedAt": 0 } },
+  "workspaces": { "C:/work/alpha": { "enabled": true, "mode": "append", "text": "…", "target": "", "updatedAt": 0 } }
 }
 ```
+
+Workspace keys are **normalised directory paths**, not `workspaceRegistry` ids. Separators are unified
+to `/`, trailing and duplicate separators and `.` segments are dropped, and case is folded on Windows —
+so `C:\work\alpha\`, `C:/work/alpha` and `c:/Work/Alpha` are one key. Ids were rejected on purpose:
+deleting and re-registering a workspace mints a new id, and a project's rules should not evaporate
+because of that. Keys that do not normalise cleanly (empty, or a bare drive like `C:`) are treated as
+"no usable directory" rather than as a shared bucket.
 
 - Writes go through a temp file plus atomic `rename`, serialized on one queue.
 - If a write fails, the panel says so explicitly (*in memory only, lost on restart*) rather than
@@ -269,26 +317,34 @@ Every key is documented in [`cordis.patch.yml`](cordis.patch.yml).
 ```
 GET  /api/system-prompt-studio?session=<sessionId>
 POST /api/system-prompt-studio
-     { "action": "set",   "scope": "session"|"global", "sessionId"?: "…", "patch": { "enabled": true, "mode": "append"|"replace"|"complete", "text": "…", "target": "…" } }
-     { "action": "clear", "scope": "session"|"global", "sessionId"?: "…" }
+     { "action": "set",   "scope": "session"|"workspace"|"global", "sessionId"?: "…", "patch": { "enabled": true, "mode": "append"|"replace"|"complete", "text": "…", "target": "…" } }
+     { "action": "clear", "scope": "session"|"workspace"|"global", "sessionId"?: "…" }
      { "action": "pin",   "scope": "session", "sessionId": "…" }
      { "action": "resetAll", "confirm": true }
 ```
 
 - Loopback-only: both the socket and the `Host` header must be loopback; cross-site origins get 403.
 - POST bodies over `maxChars * 4` bytes are rejected with 413 (never truncated).
+- `scope: "workspace"` resolves the directory **from `sessionId`** on the host. An explicit
+  `"workspaceKey": "C:/path"` is honoured only when no `sessionId` is given (scripts and tests) and goes
+  through the same normalisation. Sending a path is not how the panel works, by design: accepting one
+  would let same-origin script write rules for directories the user never opened.
+- An unrecognised `scope` value falls back to `session`, never to `global`.
 - Stable error codes: `TEXT_TOO_LONG`, `EMPTY_TEXT`, `TARGET_REQUIRED`, `COMPLETE_BLOCKED`,
-  `UNKNOWN_ACTION`, `MISSING_SESSION`, `NOTHING_TO_PIN`, `PIN_SESSION_ONLY`, `CONFIRM_REQUIRED`,
-  `INVALID_JSON`, `BODY_TOO_LARGE`, `method-not-allowed`, `forbidden: loopback-only`.
+  `UNKNOWN_ACTION`, `MISSING_SESSION`, `MISSING_WORKSPACE`, `NOTHING_TO_PIN`, `PIN_SESSION_ONLY`,
+  `CONFIRM_REQUIRED`, `INVALID_JSON`, `BODY_TOO_LARGE`, `method-not-allowed`, `forbidden: loopback-only`.
 
 ## Known limitations
 
 1. **Overrides are keyed by session id, but forks inherit.** A forked conversation picks up the nearest
    ancestor's rules (disable with `inheritOnFork`). Subagents do not take the global default and do not
-   participate in the chain. Resuming a session under the same id re-applies its rules.
-2. **Cold sessions** (no live agent) can be saved for, but take effect once resumed. Inheritance
+   participate in the fork chain; they *do* take workspace rules unless `workspaceScope: roots`.
+   Resuming a session under the same id re-applies its rules.
+2. **Cold sessions** (no live agent) can be saved for, but take effect once resumed. Fork inheritance
    specifically requires a live agent, because the parent chain is read from the session header — a cold
-   session has none until it is running again.
+   session has none until it is running again. Workspace rules work for cold sessions too: the registry
+   lookup only needs the session id, so a conversation that has not been resumed yet can still be given
+   its project's rules, and its live siblings pick them up immediately.
 3. **`{{…}}` is not interpolated.** Bodies are registered with `interpolate: false`, so braces stay
    literal. This is deliberate: otherwise any `{{x}}` in your text would fail assembly with
    *unknown prompt variable*.
@@ -299,6 +355,10 @@ POST /api/system-prompt-studio
 6. **Section attribution is approximate.** The list is attributed via the assembly context's scope (the
    agent); if that is unavailable it falls back to the most recent assembly. Overrides themselves are
    unaffected.
+7. **Workspace matching is textual, not filesystem-resolved.** Keys are normalised path spellings; `..`
+   is not resolved (that needs filesystem semantics this plugin does not touch) and symlinks are not
+   followed. The host prefers the `workspaceRegistry` entry, whose path is canonicalised by DSH itself,
+   so the normal case is exact.
 
 ## Development
 
@@ -377,13 +437,13 @@ dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio
 或从 GitHub（跟随默认分支，建议锁 tag）：
 
 ```bash
-dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.2.1
+dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.3.0
 ```
 
 锁定版本，保证装到的是一份确定的代码：
 
 ```bash
-dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.2.1
+dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.3.0
 ```
 
 `prepare` 脚本只校验入口文件存在，不做编译。若被 pnpm 拦下，把 `pnpm-workspace.yaml` 里
@@ -392,7 +452,8 @@ dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.2.1
 
 **安装后**：Host 半即时生效；客户端是新的 JS，需要刷新一次页面才会出现标题栏按钮。
 
-**使用**：打开对话 → 标题栏「系统提示词」按钮 → 选作用域、模式、写正文 → 保存，下一次发消息生效。
+**使用**：打开对话 → 标题栏「系统提示词」按钮 → 选作用域（本对话 / 本工作区 / 全局默认）、模式、
+写正文 → 保存，下一次发消息生效。
 **新开的空对话**标题栏是隐藏的，入口改在欢迎区（文字为「设置系统提示词」）—— 会话一创建 agent
 就已经在了，所以这里保存的覆盖**从第一句话**就生效，不是等到第二句。
 面板底部两个只读区块分别显示「最近一次请求真正发出的系统提示词」与「本次装配到的段清单」。
@@ -405,8 +466,24 @@ dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.2.1
 整体换成 `[completeSection]`，所以任何观察者（包括本插件）必然先看到全量。面板会把这种情况标出来，
 而不是让你对着几十个段怀疑替换没生效。
 
-**新对话怎么生效**：「本对话」只作用于这一个新对话；「全局默认」作用于**所有没有自身覆盖的顶层
-对话**——包括保存时就已经存在的那些，它是「兜底」而不是「只对新对话」。
+**新对话怎么生效**：「本对话」只作用于这一个新对话；「本工作区」作用于**这个目录下的所有对话**
+（含子代理）；「全局默认」作用于**所有没有自身覆盖的顶层对话**——后两者都包括保存时就已经存在的
+那些，它们是「兜底」而不是「只对新对话」。
+
+**三档作用域的优先级**（从具体到宽泛，命中第一个就停）：本对话 → fork 继承 → 本工作区 → 全局默认。
+工作区排在全局之上是因为它更窄；排在 fork 继承之下是因为 fork 带着它分叉出来的那段工作的上下文，
+用户为那个分支单独调过的规则比目录默认更具体。
+
+**工作区按你侧边栏看到的那个工作区算**：优先用 `workspaceRegistry` 里的归属（会话在注册表里属于哪个
+工作区），所以它不会因为你在对话里 `cd` 而漂移；注册表里没有归属时，才退回这个对话的当前目录，再退回
+会话创建时记下的原始目录。面板会显示解析出来的**原始路径**（不是归一化后的小写键），供你核对。
+
+> 这里有个坑值得说明：`workingDirectory.get()` 对**没换过目录**的会话返回的是部署默认目录，不是会话
+> 自己的项目目录。直接拿它当工作区键，所有会话会共用同一个键——在这个项目里设的规则会莫名其妙地对
+> 别处生效。所以它只在「确实换过目录」时才被采用。
+
+路径由宿主自己解析——面板从不传路径，否则同源脚本就能给用户从没打开过的目录写规则。`resetAll`
+（清空所有会话覆盖的 API 动作）**不动**工作区条目：那是攒下来的项目配置，不是逐对话的临时状态。
 
 **fork 继承**：fork 出的对话是新 session id，会沿 `parentSession` 链继承最近的祖先规则；面板显示
 「继承自 …」并提供「在此固定」把继承结果固化成本地规则。子对话自己一改就停止继承。默认上溯 3 层，
@@ -418,5 +495,6 @@ dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.2.1
 **数据位置**：`$DSH_HOME/dsh-system-prompt-studio/state.json`，原子写入；写失败会明说「只在内存」，
 文件损坏会先备份成 `.corrupt-<时间戳>` 再空态起步。
 
-**已知限制**：冷会话（没有活 agent）可以保存，但要等它恢复后才生效，且继承需要活会话才能读到父链；
-`{{…}}` 不插值（刻意为之）；系统提示词一变，该对话的缓存前缀从首个变化的 token 起失效。
+**已知限制**：冷会话（没有活 agent）可以保存，但要等它恢复后才生效，且 fork 继承需要活会话才能读到
+父链（工作区规则对冷会话也有效，目录从已存的会话里读）；`{{…}}` 不插值（刻意为之）；系统提示词一变，
+该对话的缓存前缀从首个变化的 token 起失效；工作区匹配是文本归一化，不解析 `..`、不跟随符号链接。

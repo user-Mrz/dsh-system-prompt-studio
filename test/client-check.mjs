@@ -284,6 +284,23 @@ check('保存成功后重置基线', clientSource.includes('setBaseline({ mode, 
 check('dirty 由基线现算', clientSource.includes('const dirty ='))
 check('存在 pin 请求', clientSource.includes("action: 'pin'"))
 check('存在继承来源展示', clientSource.includes("t('inheritedFrom')"))
+
+// ── 工作区级作用域（三档） ───────────────────────────────────────────────
+// 之前只有「本对话 / 全局默认」两档，缺了中间那层最常见的需求：这个项目的规矩。
+console.log('\n[workspace scope]')
+check('存在工作区档文案', clientSource.includes('scopeWorkspace:'))
+check('工作区档有说明', clientSource.includes('scopeWorkspaceHint:'))
+check('工作区无目录时能解释', clientSource.includes('scopeWorkspaceNoDir:'))
+check('工作区路径标签存在', clientSource.includes('scopeWorkspacePath:'))
+check('工作区保存文案存在', clientSource.includes('workspaceSaved:'))
+check('工作区清除文案存在', clientSource.includes('workspaceCleared:'))
+check('工作区来源提示存在', clientSource.includes('workspaceFrom:'))
+check('作用域 tab 有三档', (clientSource.match(/setScope\('(session|workspace|global)'\)/g) ?? []).length >= 3)
+check('保存时按作用域带上 sessionId', /sessionId: sessionId/.test(clientSource))
+check('工作区不可用时禁用 tab', clientSource.includes('disabled: !workspaceAvailable'))
+check('显示工作区目录路径', clientSource.includes("t('scopeWorkspacePath')"))
+check('启用文案按作用域切换', clientSource.includes("scope === 'workspace' ? 'enableWorkspace' : 'enable'"))
+check('基线读取支持 workspace 条目', clientSource.includes("which === 'workspace' ? payload?.workspace?.entry"))
 // 段清单的两个误导场景：滞后快照、complete 压缩发生在观察器之后。
 check('段清单显示装配时间', clientSource.includes('formatClock') && clientSource.includes('sectionsAtText'))
 check('滞后清单有提示', clientSource.includes("t('sectionsStaleNote')"))

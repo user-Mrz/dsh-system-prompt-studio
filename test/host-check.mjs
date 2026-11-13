@@ -70,7 +70,7 @@ function makeHarness(overrides = {}) {
   const makeAgent = (id, options = {}) => {
     const agent = {
       id,
-      session: { header: { parentSession: options.parentSession ?? overrides.parentOf?.(id) } },
+      session: { id, header: { parentSession: options.parentSession ?? overrides.parentOf?.(id), cwd: options.cwd } },
       ctx: {
         systemPrompt: makeSystemPrompt(id),
         get(name) {
@@ -97,6 +97,18 @@ function makeHarness(overrides = {}) {
     for (const listener of state.listeners.get('agent/created') ?? []) listener({ agent })
   }
 
+  /**
+   * 让一个 agent 从注册表里消失（模拟真正的冷会话）。
+   *
+   * 不能靠「把 registry.list 换成过滤版」：那是在替换 registry 自己的方法，
+   * 换出来的函数里再调 `registry.list()` 就是无限递归。这里直接改底层数组，
+   * registry 的方法读的就是它。
+   */
+  const dropAgent = (id) => {
+    const index = agents.findIndex((candidate) => candidate.id === id)
+    if (index >= 0) agents.splice(index, 1)
+  }
+
   const registry = {
     list: () => [...agents],
     get: (id) => agents.find((agent) => agent.id === id),
@@ -104,6 +116,45 @@ function makeHarness(overrides = {}) {
   }
 
   const sessions = overrides.sessions ?? new Map()
+  /** 会话 id → 当前目录的覆盖表；不在表里就走 header.cwd。 */
+  const dirs = new Map()
+  const dirOf = (session) => {
+    const id = typeof session?.id === 'string' ? session.id : ''
+    return id !== '' && dirs.has(id) ? dirs.get(id) : undefined
+  }
+  /** 模拟用户在会话里换目录（workingDirectory.set）。真实服务不广播事件。 */
+  const setDir = (id, dir) => {
+    dirs.set(id, dir)
+  }
+  /**
+   * 假 workingDirectory。
+   *
+   * 关键：真实实现的 `get()` 是 `stateOf(session) ?? defaultDirectory`——
+   * 没换过目录的会话拿到的是**部署默认目录**，不是它自己的项目目录。这个行为
+   * 必须被复现，否则「所有会话都算到同一个工作区」这个 bug 在测试里看不见。
+   */
+  const DEFAULT_DIR = 'C:\\deploy-default'
+  const workingDirectory = overrides.workingDirectory ?? {
+    defaultDirectory: DEFAULT_DIR,
+    get: (session) => {
+      if (session === null || session === undefined) return DEFAULT_DIR
+      return dirOf(session) ?? DEFAULT_DIR
+    },
+  }
+  /** 假 workspaceRegistry：按 workspace 的 sessionIds 归属。 */
+  const workspaces = []
+  const workspaceRegistry =
+    overrides.workspaceRegistry ??
+    {
+      list: () => workspaces.map((ws) => ({ ...ws, sessionIds: [...ws.sessionIds] })),
+      get: (id) => workspaces.find((ws) => ws.id === id),
+      /** 建一个工作区并挂上会话（真实注册表由 cwd 索引自动归属）。 */
+      own: (path, sessionIds) => {
+        const ws = { id: `ws-${workspaces.length + 1}`, path, title: path, sessionIds: new Set(sessionIds) }
+        workspaces.push(ws)
+        return ws
+      },
+    }
 
   const ctx = {
     logger: { warn: () => {}, info: () => {} },
@@ -112,6 +163,8 @@ function makeHarness(overrides = {}) {
       if (name === 'sessions') return sessions instanceof Map ? { get: (id) => sessions.get(id) } : sessions
       if (name === 'systemPrompt') return makeSystemPrompt('global')
       if (name === 'webServer') return webServer
+      if (name === 'workingDirectory') return workingDirectory
+      if (name === 'workspaceRegistry') return workspaceRegistry
       return undefined
     },
     on(event, listener) {
@@ -147,7 +200,20 @@ function makeHarness(overrides = {}) {
     },
   }
 
-  return { ctx, state, makeAgent, reparent, sessions, registry }
+  return {
+    ctx,
+    state,
+    makeAgent,
+    reparent,
+    dropAgent,
+    sessions,
+    registry,
+    setDir,
+    dirs,
+    workspaceRegistry,
+    workspaces,
+    DEFAULT_DIR,
+  }
 }
 
 /** 调路由；req 尽量贴近 Node 的 IncomingMessage 形状。 */
@@ -431,6 +497,230 @@ const depthConfig = mod.__internals.resolveConfig({ maxInheritDepth: 999 })
 check('maxInheritDepth 被夹到硬上限', depthConfig.maxInheritDepth === mod.__internals.MAX_INHERIT_DEPTH, String(depthConfig.maxInheritDepth))
 const zeroDepth = mod.__internals.resolveConfig({ maxInheritDepth: 0 })
 check('maxInheritDepth=0 合法（等于关闭继承）', zeroDepth.maxInheritDepth === 0, String(zeroDepth.maxInheritDepth))
+
+// ── 9e. 工作区级覆盖 ────────────────────────────────────────────────────
+console.log('\n[workspace]')
+// 先清干净，避免前面几块的残留影响优先级判定。
+await post(route, { action: 'clear', scope: 'global' })
+await post(route, { action: 'clear', scope: 'session', sessionId: 'session-a' })
+await post(route, { action: 'clear', scope: 'session', sessionId: 'session-fork' })
+
+// 目录归一化：同一个目录的不同写法必须得到同一个键，否则「在这个项目里设的
+// 规则，换个写法打开就不生效」——而用户完全看不出为什么。
+const wk = mod.__internals.workspaceKeyOf
+check('反斜杠被归一化', wk('C:\\proj\\a') === wk('C:/proj/a'), `${wk('C:\\proj\\a')} vs ${wk('C:/proj/a')}`)
+check('末尾分隔符被去掉', wk('C:/proj/a/') === wk('C:/proj/a'), `${wk('C:/proj/a/')} vs ${wk('C:/proj/a')}`)
+check('重复分隔符被折叠', wk('C://proj//a') === wk('C:/proj/a'), `${wk('C://proj//a')} vs ${wk('C:/proj/a')}`)
+check('`.` 段被折叠', wk('C:/proj/./a') === wk('C:/proj/a'), `${wk('C:/proj/./a')} vs ${wk('C:/proj/a')}`)
+check('Windows 上大小写不敏感', wk('C:/Proj/A') === wk('c:/proj/a'), `${wk('C:/Proj/A')} vs ${wk('c:/proj/a')}`)
+check('空串得到空键', wk('') === '' && wk('   ') === '' && wk(undefined) === '')
+check('只有盘符不算可用目录', wk('C:') === '' && wk('C:/') === '', JSON.stringify([wk('C:'), wk('C:/')]))
+check('不同目录得到不同键', wk('C:/proj/a') !== wk('C:/proj/b'))
+
+// 建两个不同目录的会话
+const wsAgentA = harness.makeAgent('session-ws-a', { cwd: 'C:\\work\\alpha' })
+const wsAgentB = harness.makeAgent('session-ws-b', { cwd: 'C:\\work\\beta' })
+void wsAgentA
+void wsAgentB
+// 注册表里的归属（真实运行时由 canonical-cwd 索引自动建立）。
+harness.workspaceRegistry.own('C:\\work\\alpha', ['session-ws-a'])
+
+// 工作区键随会话而来
+const wsSnapA = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-a' })
+check('快照带工作区键', typeof wsSnapA.json?.workspace?.key === 'string' && wsSnapA.json.workspace.key !== '', JSON.stringify(wsSnapA.json?.workspace))
+check('工作区键就是归一化目录', wsSnapA.json?.workspace?.key === wk('C:\\work\\alpha'), wsSnapA.json?.workspace?.key)
+// 显示用原路径：归一化会把 Windows 盘符和目录名小写化，直接显示给用户核对
+// 会看着别扭（`C:/users/...`），所以 key 与 path 必须分开返回。
+check('显示路径保留原始大小写', wsSnapA.json?.workspace?.path === 'C:\\work\\alpha', JSON.stringify(wsSnapA.json?.workspace?.path))
+check('显示路径不等于归一化键', wsSnapA.json?.workspace?.path !== wsSnapA.json?.workspace?.key, `${wsSnapA.json?.workspace?.path} vs ${wsSnapA.json?.workspace?.key}`)
+check('未配置时工作区条目为 null', wsSnapA.json?.workspace?.entry === null)
+
+/**
+ * 这一条是踩出来的回归测试：`workingDirectory.get()` 对没换过目录的会话返回
+ * 部署默认目录，不是会话自己的项目。如果工作区键只看 get()，两个不同项目的
+ * 会话会共用同一个键——用户在这个项目设的规则会对别处生效。
+ */
+check(
+  '未换目录时不会落到部署默认目录',
+  wsSnapA.json?.workspace?.key !== wk(harness.DEFAULT_DIR),
+  `${wsSnapA.json?.workspace?.key} vs default ${wk(harness.DEFAULT_DIR)}`,
+)
+const wsSnapB = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-b' })
+check('不同项目不共用键', wsSnapA.json?.workspace?.key !== wsSnapB.json?.workspace?.key, `${wsSnapA.json?.workspace?.key} vs ${wsSnapB.json?.workspace?.key}`)
+check('没有注册表归属时退回 header.cwd', wsSnapB.json?.workspace?.key === wk('C:\\work\\beta'), wsSnapB.json?.workspace?.key)
+
+// 保存工作区覆盖：只给 sessionId，host 自己算目录（客户端不能指定任意路径）
+const wsSaved = await post(route, {
+  action: 'set',
+  scope: 'workspace',
+  sessionId: 'session-ws-a',
+  patch: { enabled: true, mode: 'append', text: '这个项目的规矩。' },
+})
+check('工作区保存 200', wsSaved.status === 200, wsSaved.text)
+check('工作区条目已写入', wsSaved.json?.workspace?.entry?.enabled === true, JSON.stringify(wsSaved.json?.workspace?.entry))
+check('工作区生效来源是 workspace', wsSaved.json?.effective?.source === 'workspace', JSON.stringify(wsSaved.json?.effective))
+check('工作区生效带目录键', wsSaved.json?.effective?.workspaceKey === wk('C:\\work\\alpha'), wsSaved.json?.effective?.workspaceKey)
+check('工作区数量为 1', wsSaved.json?.workspaceCount === 1, String(wsSaved.json?.workspaceCount))
+
+// 同目录的另一个会话也要命中（这是「工作区级」而不是「会话级」的全部意义）
+const sameDirAgent = harness.makeAgent('session-ws-a2', { cwd: 'C:\\work\\alpha\\' })
+void sameDirAgent
+const sameDirSnap = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-a2' })
+check('同目录的另一会话也命中工作区规则', sameDirSnap.json?.effective?.source === 'workspace', JSON.stringify(sameDirSnap.json?.effective))
+check(
+  '末尾分隔符不同的写法命中同一条',
+  sameDirSnap.json?.effective?.workspaceKey === wsSaved.json?.effective?.workspaceKey,
+  `${sameDirSnap.json?.effective?.workspaceKey} vs ${wsSaved.json?.effective?.workspaceKey}`,
+)
+
+// 不同目录不受影响
+const otherDirSnap = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-b' })
+check('不同目录不命中', otherDirSnap.json?.effective?.kind === 'none', JSON.stringify(otherDirSnap.json?.effective))
+check('不同目录的工作区键不同', otherDirSnap.json?.workspace?.key === wk('C:\\work\\beta'), otherDirSnap.json?.workspace?.key)
+
+// 子代理：workspaceScope 默认 all，子代理也要守项目规矩
+const wsSub = harness.makeAgent('session-ws-sub', { cwd: 'C:\\work\\alpha', parentSession: 'session-ws-a2' })
+void wsSub
+const wsSubSnap = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-sub' })
+check('子代理默认继承工作区规则', wsSubSnap.json?.effective?.source === 'workspace', JSON.stringify(wsSubSnap.json?.effective))
+
+// ── 9f. 工作区与全局/会话的优先级 ───────────────────────────────────────
+console.log('\n[workspace priority]')
+// 全局 + 工作区同时存在：工作区更具体，必须赢
+await post(route, { action: 'set', scope: 'global', patch: { enabled: true, mode: 'append', text: '全局。' } })
+const wsOverGlobal = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-a' })
+check('工作区优先于全局', wsOverGlobal.json?.effective?.source === 'workspace', JSON.stringify(wsOverGlobal.json?.effective))
+check('工作区优先时正文来自工作区', wsOverGlobal.json?.effective?.chars === '这个项目的规矩。'.length, String(wsOverGlobal.json?.effective?.chars))
+
+// 会话 + 工作区同时存在：会话更具体，必须赢
+await post(route, {
+  action: 'set',
+  scope: 'session',
+  sessionId: 'session-ws-a',
+  patch: { enabled: true, mode: 'append', text: '只给这个对话。' },
+})
+const sessOverWs = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-a' })
+check('会话优先于工作区', sessOverWs.json?.effective?.source === 'session', JSON.stringify(sessOverWs.json?.effective))
+check('会话优先时正文来自会话', sessOverWs.json?.effective?.chars === '只给这个对话。'.length, String(sessOverWs.json?.effective?.chars))
+// 同目录的另一个会话仍然拿工作区规则（会话级不会漏给别人）
+const neighborStillWs = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-a2' })
+check('会话级覆盖不漏给同目录其他会话', neighborStillWs.json?.effective?.source === 'workspace', JSON.stringify(neighborStillWs.json?.effective))
+
+// 清掉会话级，回落到工作区
+await post(route, { action: 'clear', scope: 'session', sessionId: 'session-ws-a' })
+const backToWs = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-a' })
+check('清掉会话级后回落到工作区', backToWs.json?.effective?.source === 'workspace', JSON.stringify(backToWs.json?.effective))
+
+// fork 继承优先于工作区：fork 出来的对话带着上一段上下文，用户为它调过的规则更具体。
+// 先给父会话一条规则（上面的清理把它清掉了），否则无从继承。
+await post(route, {
+  action: 'set',
+  scope: 'session',
+  sessionId: 'session-fork',
+  patch: { enabled: true, mode: 'append', text: '父会话的规则。' },
+})
+const wsFork = harness.makeAgent('session-ws-fork', { cwd: 'C:\\work\\beta', parentSession: 'session-fork' })
+void wsFork
+const forkOverWs = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-fork' })
+check('fork 继承优先于工作区', forkOverWs.json?.effective?.source === 'session', JSON.stringify(forkOverWs.json?.effective))
+check('fork 继承标记了来源', forkOverWs.json?.effective?.inheritedFrom === 'session-fork', forkOverWs.json?.effective?.inheritedFrom)
+await post(route, { action: 'clear', scope: 'session', sessionId: 'session-fork' })
+
+// ── 9g. 换目录后规则跟着走（reconcile） ─────────────────────────────────
+console.log('\n[workspace switch]')
+// 用户在会话里切到另一个目录：header.cwd 不变，只有 workingDirectory 变。
+// 这是真实场景（cd 到别的项目），也是最容易被做错的一个：没有事件可听。
+harness.setDir('session-ws-a2', 'C:\\work\\beta')
+const switchedSnap = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-a2' })
+check('换目录后工作区键跟着变', switchedSnap.json?.workspace?.key === wk('C:\\work\\beta'), switchedSnap.json?.workspace?.key)
+check('换到无规则目录后不再命中', switchedSnap.json?.effective?.source !== 'workspace', JSON.stringify(switchedSnap.json?.effective))
+harness.setDir('session-ws-a2', 'C:\\work\\alpha')
+
+// 注册表归属优先于 get()：会话被注册表归到 A，即使它中途 cd 到 B，规则仍跟着
+// 用户看得见的那个工作区走——这正是「工作区级」与「当前目录级」的区别。
+harness.workspaceRegistry.own('C:\\work\\alpha', ['session-ws-a2'])
+harness.setDir('session-ws-a2', 'C:\\work\\beta')
+const registryWins = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-a2' })
+check('注册表归属优先于当前目录', registryWins.json?.workspace?.key === wk('C:\\work\\alpha'), registryWins.json?.workspace?.key)
+harness.setDir('session-ws-a2', 'C:\\work\\alpha')
+
+// ── 9h. 工作区保存的校验 ────────────────────────────────────────────────
+console.log('\n[workspace validation]')
+// 没有目录、也没显式 workspaceKey：必须拒绝，不能静默存到空键上
+const noDir = await post(route, { action: 'set', scope: 'workspace', patch: { enabled: true, text: 'x' } })
+check('无目录无键时 400', noDir.status === 400, String(noDir.status))
+check('错误码 MISSING_WORKSPACE', noDir.json?.error === 'MISSING_WORKSPACE', noDir.json?.error)
+
+// 显式 workspaceKey（脚本/测试通道）：过同一套归一化
+const explicit = await post(route, {
+  action: 'set',
+  scope: 'workspace',
+  workspaceKey: 'C:/Work/Gamma/',
+  patch: { enabled: true, mode: 'append', text: '显式目录。' },
+})
+check('显式 workspaceKey 可保存', explicit.status === 200, explicit.text)
+check('显式键被归一化', explicit.json?.workspaceCount === 2, String(explicit.json?.workspaceCount))
+const explicitSnap = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-c' })
+harness.makeAgent('session-ws-c', { cwd: 'C:\\work\\gamma' })
+const explicitHit = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-c' })
+check('显式键按归一化命中真实目录', explicitHit.json?.effective?.source === 'workspace', JSON.stringify(explicitHit.json?.effective))
+void explicitSnap
+
+// 未知 scope 不能被静默当成 global
+const badScope = await post(route, { action: 'set', scope: 'workspacce', patch: { enabled: true, text: 'x' } })
+check('未知 scope 回落到 session 而非 global', badScope.status === 400 && badScope.json?.error === 'MISSING_SESSION', `${badScope.status} ${badScope.json?.error}`)
+
+// 清除工作区规则
+const wsCleared = await post(route, { action: 'clear', scope: 'workspace', sessionId: 'session-ws-a' })
+check('工作区清除 200', wsCleared.status === 200, wsCleared.text)
+check('清除后工作区条目为 null', wsCleared.json?.workspace?.entry === null, JSON.stringify(wsCleared.json?.workspace))
+const afterWsClear = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-a' })
+check('清除工作区后回落到全局', afterWsClear.json?.effective?.source === 'global', JSON.stringify(afterWsClear.json?.effective))
+
+// resetAll 不能碰工作区规则：那是项目配置，不是逐对话的临时状态
+await post(route, { action: 'set', scope: 'workspace', sessionId: 'session-ws-b', patch: { enabled: true, mode: 'append', text: 'beta 规矩。' } })
+const beforeReset = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-b' })
+check('resetAll 前工作区有规则', beforeReset.json?.workspace?.entry?.enabled === true)
+await post(route, { action: 'resetAll', confirm: true })
+const afterReset = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-b' })
+check('resetAll 不清工作区规则', afterReset.json?.workspace?.entry?.enabled === true, JSON.stringify(afterReset.json?.workspace))
+check('resetAll 后会话条目被清空', afterReset.json?.session === null)
+
+// 收尾：清掉工作区与全局，避免影响后面的块
+for (const key of Object.keys(mod.__internals.readRuntime().state.workspaces)) {
+  await post(route, { action: 'clear', scope: 'workspace', workspaceKey: key })
+}
+await post(route, { action: 'clear', scope: 'global' })
+
+// ── 9i. 冷会话也能按工作区保存（回归） ──────────────────────────────────
+// 冷会话既没有活 agent，也不在内存 sessions store 里。早期版本的工作区解析
+// 要求必须有 Session 对象，于是冷会话的工作区档整个不可用：面板显示「没有
+// 可用工作区」，用户没法给一个还没恢复的对话设项目规则。而注册表是持久化的，
+// 光凭 sessionId 就能查到归属——这条路径必须走通。
+console.log('\n[workspace cold session]')
+const coldWsAgent = harness.makeAgent('session-ws-cold', { cwd: 'C:\\work\\delta', silent: true })
+void coldWsAgent
+// 让它从 agent 注册表里消失，模拟真正的冷会话。
+const coldId = 'session-ws-cold'
+harness.dropAgent(coldId)
+harness.workspaceRegistry.own('C:\\work\\delta', [coldId])
+const coldWsSnap = await callRoute(route, { url: `/api/system-prompt-studio?session=${coldId}` })
+check('冷会话仍能解析工作区键', coldWsSnap.json?.workspace?.key === wk('C:\\work\\delta'), JSON.stringify(coldWsSnap.json?.workspace))
+check('冷会话 live=false', coldWsSnap.json?.live === false)
+const coldWsSaved = await post(route, {
+  action: 'set',
+  scope: 'workspace',
+  sessionId: coldId,
+  patch: { enabled: true, mode: 'append', text: '冷会话也能设项目规则。' },
+})
+check('冷会话可保存工作区规则', coldWsSaved.status === 200, coldWsSaved.text)
+check('冷会话工作区规则生效', coldWsSaved.json?.effective?.source === 'workspace', JSON.stringify(coldWsSaved.json?.effective))
+// 同工作区的活会话也命中
+const deltaLive = harness.makeAgent('session-ws-delta', { cwd: 'C:\\work\\delta' })
+void deltaLive
+const deltaSnap = await callRoute(route, { url: '/api/system-prompt-studio?session=session-ws-delta' })
+check('冷会话设的规则对活会话生效', deltaSnap.json?.effective?.source === 'workspace', JSON.stringify(deltaSnap.json?.effective))
+await post(route, { action: 'clear', scope: 'workspace', workspaceKey: 'C:\\work\\delta' })
 
 // ── 10. 清除 ────────────────────────────────────────────────────────────
 console.log('\n[clear]')
