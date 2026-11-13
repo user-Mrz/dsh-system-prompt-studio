@@ -512,7 +512,16 @@ check('反斜杠被归一化', wk('C:\\proj\\a') === wk('C:/proj/a'), `${wk('C:\
 check('末尾分隔符被去掉', wk('C:/proj/a/') === wk('C:/proj/a'), `${wk('C:/proj/a/')} vs ${wk('C:/proj/a')}`)
 check('重复分隔符被折叠', wk('C://proj//a') === wk('C:/proj/a'), `${wk('C://proj//a')} vs ${wk('C:/proj/a')}`)
 check('`.` 段被折叠', wk('C:/proj/./a') === wk('C:/proj/a'), `${wk('C:/proj/./a')} vs ${wk('C:/proj/a')}`)
-check('Windows 上大小写不敏感', wk('C:/Proj/A') === wk('c:/proj/a'), `${wk('C:/Proj/A')} vs ${wk('c:/proj/a')}`)
+// 大小写折叠是**平台相关**的，而且必须如此：Windows 的文件系统默认不区分
+// 大小写，Linux 的区分。所以这里断言的是「行为与当前平台一致」，而不是
+// 「永远折叠」——后者在 CI 的 Linux runner 上必然失败，而失败的其实是断言
+// 自己，不是实现。
+if (process.platform === 'win32') {
+  check('Windows 上大小写不敏感', wk('C:/Proj/A') === wk('c:/proj/a'), `${wk('C:/Proj/A')} vs ${wk('c:/proj/a')}`)
+} else {
+  check('非 Windows 上大小写敏感', wk('C:/Proj/A') !== wk('c:/proj/a'), `${wk('C:/Proj/A')} vs ${wk('c:/proj/a')}`)
+}
+
 check('空串得到空键', wk('') === '' && wk('   ') === '' && wk(undefined) === '')
 check('只有盘符不算可用目录', wk('C:') === '' && wk('C:/') === '', JSON.stringify([wk('C:'), wk('C:/')]))
 check('不同目录得到不同键', wk('C:/proj/a') !== wk('C:/proj/b'))
@@ -651,11 +660,13 @@ const noDir = await post(route, { action: 'set', scope: 'workspace', patch: { en
 check('无目录无键时 400', noDir.status === 400, String(noDir.status))
 check('错误码 MISSING_WORKSPACE', noDir.json?.error === 'MISSING_WORKSPACE', noDir.json?.error)
 
-// 显式 workspaceKey（脚本/测试通道）：过同一套归一化
+// 显式 workspaceKey（脚本/测试通道）：过同一套归一化。
+// 这里刻意只改变**分隔符与末尾斜杠**，不改变大小写：大小写折叠是平台相关的，
+// 混进来会让这条断言在 Linux 上失败，而它本来要验证的是归一化本身。
 const explicit = await post(route, {
   action: 'set',
   scope: 'workspace',
-  workspaceKey: 'C:/Work/Gamma/',
+  workspaceKey: 'C:\\work\\gamma\\',
   patch: { enabled: true, mode: 'append', text: '显式目录。' },
 })
 check('显式 workspaceKey 可保存', explicit.status === 200, explicit.text)
