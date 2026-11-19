@@ -12,6 +12,21 @@ integration still targets the same DSH shapes, a major bump means it may not.
 
 Nothing yet.
 
+## [0.3.1] — 2026-11-19
+
+### Changed
+
+- **Added the dsh-plugin.org listing badge to the README.** The plugin has been listed in that
+  community hub since 2026-11-09 (verified, currently at 0.3.0). The badge links back to the listing
+  page, which carries install instructions and a feature summary beside the repository link.
+
+- Verified against DSH `0.2.2-rc.5`: no code change was needed. `SECTION_ORDERS` is byte-identical to
+  `rc.3` (34 entries, same values), `assemble()` and its `complete` handling are unchanged, and
+  `workingDirectory.get()` still returns `stateOf(session) ?? defaultDirectory` — the fallback this
+  plugin's workspace keying deliberately works around. `engines.dsh` (`>=0.2.2-0 <0.3.0-0`) already
+  admits `rc.5`. The `rc.4` → `rc.5` diff touches only the web-search provider default; every package
+  this plugin depends on changed nothing but its version string.
+
 ## [0.3.0] — 2026-11-13
 
 ### Added
@@ -298,7 +313,8 @@ scoped name unambiguous for anyone who arrives from GitHub.
 - Read-only assembly observer listing the real section names, order and size.
 - Loopback-only HTTP route for the panel; forged `Host` headers are refused.
 
-[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.3.0...HEAD
+[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.3.1...HEAD
+[0.3.1]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.2.0...v0.2.1
 [0.2.0]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.1.9...v0.2.0
