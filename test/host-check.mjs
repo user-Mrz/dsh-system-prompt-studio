@@ -844,6 +844,92 @@ if (observers.length === 1) {
   check('切回 append 后 sectionsComplete=false', back.json?.sectionsComplete === false, String(back.json?.sectionsComplete))
 }
 
+// ── 13d. 过期判定要按「生效来源」取条目，不能只看会话条目 ────────────────
+// 原实现只比较 state.sessions[sessionId]，于是工作区档、全局档、以及 fork 继承
+// 三种情况保存后，面板都会拿着旧清单一声不响 —— 正是 sectionsStale 要防的误导。
+console.log('\n[stale by source]')
+if (observers.length === 1) {
+  // 回到干净状态：清掉会话级、全局、工作区。
+  await post(route, { action: 'clear', scope: 'session', sessionId: 'session-a' })
+  await post(route, { action: 'clear', scope: 'global' })
+
+  // 造一个新的装配快照，把 watch.seq 固定在当前 writeSeq。
+  await observers[0]({ sections: [{ name: 'harness:identity', text: 'x', interpolate: false }], contexts: [], variables: {} }, { scope: agent, agent }, () =>
+    Promise.resolve({}),
+  )
+  const base = await callRoute(route, { url: '/api/system-prompt-studio?session=session-a' })
+  check('基线：无覆盖时不过期', base.json?.sectionsStale === false, String(base.json?.sectionsStale))
+
+  // 工作区档：保存后必须判过期。
+  const wsSaved = await post(route, {
+    action: 'set',
+    scope: 'workspace',
+    sessionId: 'session-a',
+    patch: { enabled: true, mode: 'append', text: '工作区规则。' },
+  })
+  check('工作区保存成功', wsSaved.status === 200, wsSaved.text)
+  check('工作区生效', wsSaved.json?.effective?.source === 'workspace', JSON.stringify(wsSaved.json?.effective))
+  check('工作区保存后清单被判过期', wsSaved.json?.sectionsStale === true, String(wsSaved.json?.sectionsStale))
+
+  // 重新装配一次，过期标记必须消失。
+  await observers[0]({ sections: [{ name: 'harness:identity', text: 'x', interpolate: false }], contexts: [], variables: {} }, { scope: agent, agent }, () =>
+    Promise.resolve({}),
+  )
+  const afterReassembly = await callRoute(route, { url: '/api/system-prompt-studio?session=session-a' })
+  check('工作区：重新装配后不再过期', afterReassembly.json?.sectionsStale === false, String(afterReassembly.json?.sectionsStale))
+
+  // 清掉工作区，改测全局档。
+  await post(route, { action: 'clear', scope: 'workspace', sessionId: 'session-a' })
+  await observers[0]({ sections: [{ name: 'harness:identity', text: 'x', interpolate: false }], contexts: [], variables: {} }, { scope: agent, agent }, () =>
+    Promise.resolve({}),
+  )
+  const gSaved = await post(route, {
+    action: 'set',
+    scope: 'global',
+    // 面板保存时总会带上 sessionId（它据此回读该会话的快照）；这里必须一致，
+    // 否则拿到的是无会话上下文的快照，watch 为 undefined，过期标记无从计算。
+    sessionId: 'session-a',
+    patch: { enabled: true, mode: 'append', text: '全局规则。' },
+  })
+  check('全局保存成功', gSaved.status === 200, gSaved.text)
+  check('全局保存后清单被判过期', gSaved.json?.sectionsStale === true, String(gSaved.json?.sectionsStale))
+
+  // fork 继承：生效的是祖先条目，判过期必须取祖先的 writeSeq。
+  await post(route, { action: 'clear', scope: 'global' })
+  await post(route, {
+    action: 'set',
+    scope: 'session',
+    sessionId: 'session-a',
+    patch: { enabled: true, mode: 'append', text: '父会话规则。' },
+  })
+  const forkAgent = harness.makeAgent('session-stale-fork', { parentSession: 'session-a' })
+  void forkAgent
+  // 先装配一次，让 fork 有一份清单。
+  await observers[0]({ sections: [{ name: 'harness:identity', text: 'x', interpolate: false }], contexts: [], variables: {} }, { scope: forkAgent, agent: forkAgent }, () =>
+    Promise.resolve({}),
+  )
+  const forkBase = await callRoute(route, { url: '/api/system-prompt-studio?session=session-stale-fork' })
+  check('fork 生效来源是继承', forkBase.json?.effective?.inheritedFrom === 'session-a', JSON.stringify(forkBase.json?.effective))
+  check('fork 基线不过期', forkBase.json?.sectionsStale === false, String(forkBase.json?.sectionsStale))
+  // 改父会话的规则：fork 自己没条目，但生效内容变了，必须判过期。
+  await post(route, {
+    action: 'set',
+    scope: 'session',
+    sessionId: 'session-a',
+    patch: { enabled: true, mode: 'append', text: '父会话规则（改过）。' },
+  })
+  const forkStale = await callRoute(route, { url: '/api/system-prompt-studio?session=session-stale-fork' })
+  check('父会话改规则后 fork 清单被判过期', forkStale.json?.sectionsStale === true, String(forkStale.json?.sectionsStale))
+
+  // sessionCount：面板据此决定「清除所有会话覆盖」是否可点。
+  check('snapshot 返回 sessionCount', typeof forkStale.json?.sessionCount === 'number', String(forkStale.json?.sessionCount))
+  check('sessionCount 至少为 1', (forkStale.json?.sessionCount ?? 0) >= 1, String(forkStale.json?.sessionCount))
+
+  // 收尾：清干净，避免影响后面的块。
+  await post(route, { action: 'clear', scope: 'session', sessionId: 'session-a' })
+  await post(route, { action: 'clear', scope: 'session', sessionId: 'session-stale-fork' })
+}
+
 // ── 13b. 顺序推算 ───────────────────────────────────────────────────────
 console.log('\n[deriveOrders]')
 const derived = mod.__internals.deriveOrders([

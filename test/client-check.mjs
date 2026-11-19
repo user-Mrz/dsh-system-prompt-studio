@@ -330,7 +330,34 @@ check('冷会话如实说无法列举', clientSource.includes("t('completeDropsU
 check('点名插件段会哑掉', clientSource.includes("t('completeDropsPlugins')"))
 check('blocked 时不列清单（已被禁用，列了也没用）', /blocked\.complete\s*\?\s*null\s*:/.test(clientSource))
 
+// ── 状态文件健康度：Host 一直回报，面板此前从不显示 ──────────────────────
+// 状态文件损坏（已备份并空态起步）或写盘失败（只在内存）时用户零感知，
+// 与 README 承诺的「写失败会明说」不符。这里锁住那个出口。
+console.log('\n[health surface]')
+check('读取 persisted 字段', clientSource.includes('payload.persisted === false'))
+check('读取 health.error', clientSource.includes('payload?.health?.error'))
+check('读取 health.backup', clientSource.includes('payload?.health?.backup'))
+check('读取 health.stateFile', clientSource.includes('payload?.health?.stateFile'))
+check('存在健康度警告条', clientSource.includes("key: 'health'"))
+check('写盘失败用 error 样式', /notPersisted \? 'error' : 'warn'/.test(clientSource))
+check('提示「只在内存」', clientSource.includes("t('stateNotPersisted')"))
+check('提示备份路径', clientSource.includes("t('stateBackup')"))
+
+// ── resetAll：Host 有实现，面板此前没有入口 ──────────────────────────────
+console.log('\n[resetAll surface]')
+check('存在 resetAll 请求', clientSource.includes("action: 'resetAll'"))
+check('带 confirm: true', /action: 'resetAll', confirm: true/.test(clientSource))
+check('存在二次确认状态', clientSource.includes('confirmReset'))
+check('存在二次确认层', clientSource.includes('resetLayer'))
+check('确认文案说明不动工作区/全局', clientSource.includes("t('resetAllKeep')"))
+check('确认文案带条数占位', clientSource.includes("{n}") && clientSource.includes("t('resetAllBody').replace('{n}'"))
+check('无条目时禁用按钮', clientSource.includes('sessionCount === 0'))
+check('Esc 可取消清空确认', /if \(confirmReset\) setConfirmReset\(false\)/.test(clientSource))
+check('遮罩点击可取消清空确认', clientSource.includes('confirmReset ? () => setConfirmReset(false)'))
+check('危险按钮有独立样式', clientSource.includes("data-danger"))
+
 // ── P0-1 导出面收敛 ─────────────────────────────────────────────────────
+console.log('\n[p0-1 export surface]')
 console.log('\n[p0-1 export surface]')
 const hostSource = await import('node:fs').then(({ readFileSync }) =>
   readFileSync(new URL('../lib/index.js', import.meta.url), 'utf8'),

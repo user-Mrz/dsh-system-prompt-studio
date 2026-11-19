@@ -91,7 +91,7 @@ dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio
 From GitHub, which tracks the default branch and therefore needs a ref if you want a fixed version:
 
 ```bash
-dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.3.1
+dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.3.2
 ```
 
 Replace `<profile>` with your profile name — for the Web build that is usually `web`.
@@ -100,7 +100,7 @@ Replace `<profile>` with your profile name — for the Web build that is usually
 changes what you install next time:
 
 ```bash
-dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.3.1
+dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.3.2
 ```
 
 <details>
@@ -360,6 +360,10 @@ POST /api/system-prompt-studio
    is not resolved (that needs filesystem semantics this plugin does not touch) and symlinks are not
    followed. The host prefers the `workspaceRegistry` entry, whose path is canonicalised by DSH itself,
    so the normal case is exact.
+8. **A corrupt or unwritable state file is reported in the panel, not repaired.** A damaged file is
+   backed up to `state.json.corrupt-<timestamp>` and the plugin starts empty; a failed write stays in
+   memory only. Both now surface as a banner at the top of the panel, with the file path and any backup
+   path — check it before assuming your rules were saved.
 
 ## Development
 
@@ -438,13 +442,13 @@ dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio
 或从 GitHub（跟随默认分支，建议锁 tag）：
 
 ```bash
-dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.3.1
+dsh plugin --profile <profile> add github:user-Mrz/dsh-system-prompt-studio#v0.3.2
 ```
 
 锁定版本，保证装到的是一份确定的代码：
 
 ```bash
-dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.3.1
+dsh plugin --profile <profile> add @user-mrz/dsh-system-prompt-studio@0.3.2
 ```
 
 `prepare` 脚本只校验入口文件存在，不做编译。若被 pnpm 拦下，把 `pnpm-workspace.yaml` 里

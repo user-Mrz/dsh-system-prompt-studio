@@ -12,6 +12,38 @@ integration still targets the same DSH shapes, a major bump means it may not.
 
 Nothing yet.
 
+## [0.3.2] — 2026-11-19
+
+### Fixed
+
+- **The stale-section warning ignored the workspace and global scopes.** `sectionsStale` compared
+  only `state.sessions[sessionId]`, so after saving a workspace-level or global-level override the panel
+  kept showing the *previous* assembly's section list without saying so — precisely the misleading case
+  that field exists to prevent. The comparison now resolves the entry that is actually in force: the
+  session's own entry, the **ancestor's** entry when the rule is inherited by a fork, the workspace
+  entry, or the global entry. A fork whose parent's rules change is now flagged as stale too, which it
+  previously never was because the fork has no session entry of its own.
+
+- **The panel never showed the state file's health.** The host has always reported `health`
+  (`stateFile`, `error`, `backup`) and `persisted`, but no part of the client read them. A corrupt state
+  file — backed up to `.corrupt-<timestamp>` and restarted empty — and a failed write that exists only in
+  memory were both completely invisible, contradicting the README's promise that a failed write is
+  stated plainly. The panel now shows a banner: red when the write did not persist (lost on restart),
+  amber for a read error with the backup path.
+
+- **`resetAll` was implemented but unreachable.** The host accepted `action: 'resetAll'`, yet the panel
+  had no entry point, so clearing accumulated per-conversation overrides meant deleting them one at a
+  time. There is now a **Clear all conversation overrides** button with a second confirmation, disabled
+  when there is nothing to clear (`sessionCount`, a new counter symmetrical with `workspaceCount`). The
+  confirmation states that workspace rules and the global default are unaffected, and `resetAll` still
+  leaves both untouched.
+
+### Changed
+
+- Ten new client checks and twelve new host checks cover the three fixes, including that a fork is
+  flagged stale when its ancestor's rules change, and that a global save is flagged stale for the
+  session that triggered it.
+
 ## [0.3.1] — 2026-11-19
 
 ### Changed
@@ -313,7 +345,8 @@ scoped name unambiguous for anyone who arrives from GitHub.
 - Read-only assembly observer listing the real section names, order and size.
 - Loopback-only HTTP route for the panel; forged `Host` headers are refused.
 
-[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.3.1...HEAD
+[Unreleased]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.3.2...HEAD
+[0.3.2]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.3.1...v0.3.2
 [0.3.1]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.3.0...v0.3.1
 [0.3.0]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.2.1...v0.3.0
 [0.2.1]: https://github.com/user-Mrz/dsh-system-prompt-studio/compare/v0.2.0...v0.2.1
