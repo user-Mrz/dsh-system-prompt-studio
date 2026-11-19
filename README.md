@@ -2,6 +2,7 @@
 
 [![npm](https://img.shields.io/npm/v/@user-mrz/dsh-system-prompt-studio.svg)](https://www.npmjs.com/package/@user-mrz/dsh-system-prompt-studio)
 [![License: MIT](https://img.shields.io/badge/license-MIT-blue.svg)](LICENSE)
+[![Listed on dsh-plugin.org](https://dsh-plugin.org/badges/listed.svg)](https://dsh-plugin.org/plugins/user-mrz/dsh-system-prompt-studio)
 
 A **[DeepSeek Harness](https://github.com/deepseek-ai)** plugin that lets you inspect and override the
 **system prompt** a conversation actually sends to the model — per conversation, at runtime, without
